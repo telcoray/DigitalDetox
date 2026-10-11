@@ -1,0 +1,254 @@
+// Main window where the duration is chosen. Equivalent of MainWindow.xaml in the C# version.
+
+import { Label, SymbolLabel, ScrollArea } from "common.slint";
+
+// Rounded colored button (PrimaryButton / SuccessButton styles of the C# version)
+component PillButton inherits Rectangle {
+    in property <string> text;
+    in property <length> font-size: 14px;
+    in property <color> base-color: #3498DB;
+    in property <color> hover-color: #2980B9;
+    in property <color> pressed-color: #1F618D;
+    callback clicked();
+
+    border-radius: 8px;
+    background: touch.pressed ? root.pressed-color : touch.has-hover ? root.hover-color : root.base-color;
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+
+        Label {
+            text: root.text;
+            font-size: root.font-size;
+            font-weight: 600;
+            color: #FFFFFF;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// White rounded card with a soft shadow
+component Card inherits Rectangle {
+    background: #FFFFFF;
+    border-radius: 12px;
+    drop-shadow-blur: 15px;
+    drop-shadow-offset-y: 2px;
+    drop-shadow-color: #0000001A;
+
+    VerticalLayout {
+        padding: 25px;
+        @children
+    }
+}
+
+component Bullet inherits Label {
+    font-size: 15px;
+    color: #7F8C8D;
+    horizontal-alignment: left;
+}
+
+export component MainWindow inherits Window {
+    in-out property <string> minutes-text: "25";
+    in-out property <string> error-text;
+
+    // Rust filters what is typed (digits only, max 3) and starts the detox
+    callback minutes-edited(string);
+    callback start-clicked();
+
+    title: "Digital Detox";
+    icon: @image-url("../assets/logo.svg");
+    // Fixed size, like ResizeMode="NoResize". WPF's 450x600 includes border and title bar,
+    // Slint's size is only the inside of the window: about 434x561 is the same visible area.
+    // 432x560 is used instead because it gives whole pixels at 100/125/150/175% display scaling:
+    // with fractional sizes a 1px unpainted (white) line appears on the right and bottom edges.
+    width: 432px;
+    height: 560px;
+    background: #ECF0F1;
+
+    VerticalLayout {
+        // Header
+        Rectangle {
+            background: #2C3E50;
+
+            VerticalLayout {
+                padding-left: 30px;
+                padding-right: 30px;
+                padding-top: 25px;
+                padding-bottom: 25px;
+                spacing: 8px;
+
+                SymbolLabel {
+                    symbol: "🌿";
+                    text: "Digital Detox";
+                    font-size: 28px;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                }
+
+                Label {
+                    text: "Take a break from your screen";
+                    font-size: 16px;
+                    color: #BDC3C7;
+                }
+            }
+        }
+
+        // Scrollable body with the two cards
+        ScrollArea {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding: 30px;
+                spacing: 20px;
+
+                Card {
+                    Label {
+                        text: "Set Detox Duration";
+                        font-size: 22px;
+                        font-weight: 700;
+                        color: #2C3E50;
+                    }
+
+                    VerticalLayout {
+                        padding-top: 5px;
+                        padding-bottom: 20px;
+
+                        Label {
+                            text: "How long do you want to disconnect?";
+                            font-size: 16px;
+                            color: #7F8C8D;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 12px;
+                        padding-bottom: 15px;
+
+                        // Text box with a border that turns blue when focused
+                        Rectangle {
+                            width: 100px;
+                            height: 66px;
+                            border-radius: 6px;
+                            border-width: 2px;
+                            border-color: input.has-focus ? #3498DB : #BDC3C7;
+                            background: #FFFFFF;
+
+                            input := TextInput {
+                                x: 12px;
+                                width: parent.width - 24px;
+                                height: parent.height;
+                                text <=> root.minutes-text;
+                                input-type: number;
+                                font-family: "Segoe UI";
+                                font-size: 18px;
+                                color: #2C3E50;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                edited => { root.minutes-edited(self.text); }
+                                // Enter starts the detox, like clicking the green button
+                                accepted => { root.start-clicked(); }
+                            }
+                        }
+
+                        Label {
+                            text: "minutes";
+                            font-size: 18px;
+                            color: #7F8C8D;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    // Inline error message, instead of the MessageBox of the C# version
+                    if root.error-text != "": Label {
+                        text: root.error-text;
+                        font-size: 14px;
+                        color: #E74C3C;
+                        wrap: word-wrap;
+                    }
+
+                    // Quick picks: four on the first row, one on the second, like the WrapPanel
+                    HorizontalLayout {
+                        alignment: center;
+                        padding-top: 15px;
+
+                        VerticalLayout {
+                            spacing: 10px;
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                for minutes in [5, 15, 25, 45]: PillButton {
+                                    text: "\{minutes} min";
+                                    clicked => {
+                                        root.minutes-text = minutes;
+                                        root.error-text = "";
+                                    }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                alignment: start;
+                                PillButton {
+                                    text: "60 min";
+                                    clicked => {
+                                        root.minutes-text = "60";
+                                        root.error-text = "";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Card {
+                    Label {
+                        text: "What happens next?";
+                        font-size: 22px;
+                        font-weight: 700;
+                        color: #2C3E50;
+                    }
+
+                    VerticalLayout {
+                        padding-top: 15px;
+                        spacing: 10px;
+
+                        Bullet { text: "• Full-screen overlay will appear"; }
+                        Bullet { text: "• Cannot be closed until timer ends"; }
+                        Bullet { text: "• Alt+Tab, Win key, Alt+F4 blocked"; }
+                        Bullet { text: "• Screen auto-unlocks when time is up"; }
+                    }
+                }
+            }
+        }
+
+        // Footer with the start button
+        Rectangle {
+            background: #2C3E50;
+
+            HorizontalLayout {
+                alignment: center;
+                padding-top: 20px;
+                padding-bottom: 20px;
+
+                PillButton {
+                    width: 300px;
+                    height: 55px;
+                    text: "Start Digital Detox";
+                    font-size: 18px;
+                    base-color: #27AE60;
+                    hover-color: #219A52;
+                    pressed-color: #1E8449;
+                    clicked => { root.start-clicked(); }
+                }
+            }
+        }
+    }
+}

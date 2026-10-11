@@ -1,0 +1,274 @@
+// Full-screen lock screen shown during a detox session.
+// Equivalent of LockWindow.xaml in the C# version, with the same layout and spacing.
+
+import { Label, SymbolLabel } from "common.slint";
+
+// Timer whose total width never changes: every digit gets a cell as wide as "0" and is
+// centered in it, so narrow digits like "1" don't make the whole timer shift sideways.
+component TimerDisplay inherits Rectangle {
+    in property <[string]> chars;          // e.g. ["2", "5", ":", "0", "0"]
+    in property <color> text-color;
+    in property <length> size: 140px;
+
+    // Invisible reference texts, only used to measure the cell widths
+    digit-probe := Text { text: "0"; font-family: "Segoe UI"; font-size: root.size; font-weight: 100; visible: false; }
+    colon-probe := Text { text: ":"; font-family: "Segoe UI"; font-size: root.size; font-weight: 100; visible: false; }
+
+    min-height: digit-probe.preferred-height;
+
+    HorizontalLayout {
+        width: 100%;
+        height: 100%;
+        alignment: center;
+
+        for ch in root.chars: Text {
+            text: ch;
+            width: ch == ":" ? colon-probe.preferred-width : digit-probe.preferred-width;
+            font-family: "Segoe UI";
+            font-size: root.size;
+            font-weight: 100;
+            color: root.text-color;
+            horizontal-alignment: center;
+        }
+    }
+}
+
+// Transparent button with a thin border, like the Emergency Exit button of the C# version
+component OutlineButton inherits Rectangle {
+    in property <string> text;
+    callback clicked();
+
+    width: 300px;
+    height: 50px;
+    border-width: 2px;
+    border-color: touch.has-hover ? #5D6D7E : #34495E;
+    background: touch.pressed ? #2C3E50 : transparent;
+
+    Label {
+        text: root.text;
+        font-size: 16px;
+        font-weight: 500;
+        color: #FFFFFF;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Shown on every secondary monitor: same background, title and timer, nothing to interact with
+export component CoverWindow inherits Window {
+    in property <[string]> time-chars;
+    in property <bool> completed: false;
+
+    title: "Digital Detox - Locked";
+    icon: @image-url("../assets/logo.svg");
+    background: #1A1A2E;
+    always-on-top: true;
+    no-frame: true;
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 20px;
+
+        SymbolLabel {
+            symbol: "🌿";
+            text: "Time to Disconnect";
+            font-size: 28px;
+            font-weight: 700;
+            color: #ECF0F1;
+        }
+
+        TimerDisplay {
+            chars: root.time-chars;
+            size: 72px;
+            text-color: root.completed ? #90EE90 : #FFFFFF;
+        }
+    }
+}
+
+export component LockWindow inherits Window {
+    // Values set from Rust (like x:Name'd controls updated from code-behind in WPF)
+    in property <[string]> time-chars;
+    in property <string> motivation;
+    in property <string> unlock-text;
+    in property <float> progress: 0;      // 0.0 → 1.0
+    in property <bool> completed: false;
+
+    // Emergency exit state. Rust counts the Ctrl+Shift+X presses; the UI handles the confirmation.
+    in-out property <string> status-message;        // replaces the status line when not empty
+    in-out property <bool> emergency-visible: false;
+    property <bool> confirm-visible: false;
+
+    callback emergency-key-pressed();
+    callback exit-requested();
+
+    title: "Digital Detox - Locked";
+    icon: @image-url("../assets/logo.svg");
+    background: #1A1A2E;
+    always-on-top: true;
+    no-frame: true;
+
+    forward-focus: keys;
+
+    keys := FocusScope {
+        width: 100%;
+        height: 100%;
+
+        key-pressed(event) => {
+            if (event.modifiers.control && event.modifiers.shift && (event.text == "x" || event.text == "X")) {
+                root.emergency-key-pressed();
+                return accept;
+            }
+            reject
+        }
+
+        // Three bands like the WPF Grid (*, Auto, *): the timer block sits exactly in the
+        // middle, the title hangs above it and the info below it
+        VerticalLayout {
+            // Top band: title + motivation, aligned to the bottom, 40px above the timer
+            VerticalLayout {
+                vertical-stretch: 1;
+                alignment: end;
+                padding-bottom: 40px;
+                spacing: 10px;
+
+                SymbolLabel {
+                    symbol: "🌿";
+                    text: "Time to Disconnect";
+                    font-size: 28px;
+                    font-weight: 700;
+                    color: #ECF0F1;
+                }
+
+                Label {
+                    text: root.motivation;
+                    font-size: 18px;
+                    color: #BDC3C7;
+                }
+            }
+
+            // Middle band: timer, status, progress bar
+            VerticalLayout {
+                vertical-stretch: 0;
+
+                TimerDisplay {
+                    chars: root.time-chars;
+                    text-color: root.completed ? #90EE90 : #FFFFFF;
+                }
+
+                VerticalLayout {
+                    padding-top: 15px;
+                    if root.completed: SymbolLabel {
+                        symbol: "✨";
+                        text: "Detox Complete!";
+                        font-size: 24px;
+                        color: #90EE90;
+                    }
+
+                    if !root.completed: Label {
+                        text: root.status-message != "" ? root.status-message : "Digital Detox in Progress";
+                        font-size: 24px;
+                        color: root.status-message != "" ? #FFA500 : #95A5A6;
+                    }
+                }
+
+                // Progress bar: centered 400px track with a fill proportional to `progress`
+                HorizontalLayout {
+                    alignment: center;
+                    padding-top: 30px;
+
+                    Rectangle {
+                        width: 400px;
+                        height: 6px;
+                        border-radius: 3px;
+                        background: #2C3E50;
+
+                        Rectangle {
+                            x: 0;
+                            width: parent.width * root.progress;
+                            height: parent.height;
+                            border-radius: 3px;
+                            background: root.completed ? #90EE90 : #3498DB;
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    padding-top: 10px;
+                    Label {
+                        text: "\{Math.floor(root.progress * 100)}% complete";
+                        font-size: 14px;
+                        color: #7F8C8D;
+                    }
+                }
+            }
+
+            // Bottom band: unlock info, aligned to the top, 40px below the progress bar
+            VerticalLayout {
+                vertical-stretch: 1;
+                alignment: start;
+                padding-top: 40px;
+                spacing: 15px;
+
+                Label {
+                    text: "Your screen will unlock automatically when the timer ends.";
+                    font-size: 16px;
+                    color: #7F8C8D;
+                }
+
+                Label {
+                    text: root.unlock-text;
+                    font-size: 14px;
+                    color: #95A5A6;
+                }
+
+                // Appears after Ctrl+Shift+X has been pressed three times
+                if root.emergency-visible && !root.confirm-visible: HorizontalLayout {
+                    alignment: center;
+                    padding-top: 15px;
+
+                    OutlineButton {
+                        text: "Emergency Exit";
+                        clicked => { root.confirm-visible = true; }
+                    }
+                }
+
+                // In-window confirmation, instead of the MessageBox of the C# version
+                if root.confirm-visible: VerticalLayout {
+                    padding-top: 15px;
+                    spacing: 15px;
+
+                    Label {
+                        text: "Are you sure you want to end your detox early?\nYour progress will be lost.";
+                        font-size: 16px;
+                        color: #ECF0F1;
+                    }
+
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 20px;
+
+                        OutlineButton {
+                            width: 220px;
+                            text: "Yes, end detox";
+                            clicked => { root.exit-requested(); }
+                        }
+
+                        OutlineButton {
+                            width: 220px;
+                            text: "No, keep going";
+                            clicked => {
+                                root.confirm-visible = false;
+                                root.emergency-visible = false;
+                                root.status-message = "";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

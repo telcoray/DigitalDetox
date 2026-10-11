@@ -1,16 +1,4 @@
-# Build output
-bin/
-obj/
-
-# Visual Studio / Rider
-.vs/
-.idea/
-*.user
-*.suo
-
-# OS files
-Thumbs.db
-Desktop.ini
+/target
 
 # Release packages (uploaded to GitHub Releases, not committed)
-release/
+/release

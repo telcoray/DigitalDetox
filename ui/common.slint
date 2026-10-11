@@ -1,0 +1,96 @@
+// Building blocks shared by every window
+
+// Centered text in the app's font (like a shared TextBlock style in XAML)
+export component Label inherits Text {
+    font-family: "Segoe UI";
+    horizontal-alignment: center;
+}
+
+// Text preceded by a symbol such as 🌿 or ✨. The symbol uses Segoe UI Symbol, which draws it
+// as a single-color glyph tinted like the text: the same look WPF gives in the C# version
+// (Skia would otherwise use the full-color Windows emoji).
+export component SymbolLabel inherits HorizontalLayout {
+    in property <string> symbol;
+    in property <string> text;
+    in property <length> font-size;
+    in property <int> font-weight: 400;
+    in property <color> color;
+
+    alignment: center;
+    spacing: root.font-size * 0.3;
+
+    Text {
+        text: root.symbol;
+        font-family: "Segoe UI Symbol";
+        font-size: root.font-size;
+        color: root.color;
+        vertical-alignment: center;
+    }
+
+    Label {
+        text: root.text;
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+        color: root.color;
+        vertical-alignment: center;
+    }
+}
+
+// Vertical scrolling area that moves in fixed steps, like WPF's ScrollViewer.
+// Slint's own ScrollView (built on Flickable) animates every wheel notch over 180 ms,
+// which looks blurred while the content is moving; here the content jumps straight to place.
+export component ScrollArea inherits Rectangle {
+    // Same as WPF: 3 lines of 16px per wheel notch
+    in property <length> step: 48px;
+
+    property <length> offset: 0px;
+    property <length> content-height: content.preferred-height;
+    property <length> max-offset: max(0px, root.content-height - root.height);
+
+    clip: true;
+
+    TouchArea {
+        // Children (buttons, text box) ignore wheel events, so they all end up here
+        scroll-event(event) => {
+            if (event.delta-y > 0) {
+                root.offset = max(0px, root.offset - root.step);
+            } else if (event.delta-y < 0) {
+                root.offset = min(root.max-offset, root.offset + root.step);
+            }
+            accept
+        }
+
+        content := VerticalLayout {
+            y: -root.offset;
+            width: root.width;
+            height: self.preferred-height;
+            @children
+        }
+    }
+
+    // Thin scrollbar on the right, only when the content doesn't fit
+    if root.max-offset > 0: Rectangle {
+        x: root.width - 10px;
+        width: 10px;
+        height: root.height;
+
+        thumb := Rectangle {
+            width: drag.has-hover || drag.pressed ? 6px : 4px;
+            x: parent.width - self.width - 2px;
+            height: max(30px, root.height * root.height / root.content-height);
+            y: (root.height - self.height) * root.offset / root.max-offset;
+            border-radius: self.width / 2;
+            background: drag.pressed ? #00000080 : #00000050;
+
+            drag := TouchArea {
+                // The thumb follows the mouse, so each move only needs the distance since the last one
+                moved => {
+                    if (self.pressed) {
+                        root.offset = max(0px, min(root.max-offset,
+                            root.offset + (self.mouse-y - self.pressed-y) * root.max-offset / (root.height - thumb.height)));
+                    }
+                }
+            }
+        }
+    }
+}
