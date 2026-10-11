@@ -14,8 +14,10 @@
 
 ## Features
 
-- **Pick a duration** from 1 to 999 minutes, or use the quick presets (5, 15, 25, 45, 60 min)
+- **Pick a duration** from 1 to 999 minutes, or use the quick presets (5, 15, 25, 45, 60 min), and see right away when it will end
 - **Full-screen lock** that stays on top until the timer ends, with a countdown, progress bar and unlock time
+- **The screen switches off gradually**: it dims as soon as the detox starts (on laptops the brightness drops to the minimum), turns black after a minute without input, and on desktop PCs the monitor is switched off a couple of minutes later. Move the mouse to see the timer again, or press **Turn off screen** to go dark right away. Everything comes back at the end.
+- **No pauses**: the PC is kept from going to sleep until the detox is over
 - **All monitors covered**: secondary screens get their own overlay with the timer
 - **Shortcuts blocked** while locked: Windows key, Alt+Tab, Alt+F4, Alt+Esc, Ctrl+Esc and Ctrl+Shift+Esc
 - **A calming message** picked at random for each session
@@ -68,7 +70,7 @@ assets/      logo and icon
 <img src="screenshots/main-window.png" alt="Main window" width="320" align="right" />
 
 1. Enter how many minutes you want to disconnect, or click a preset
-2. Click **Start Digital Detox**
+2. Click **Start detox** (or press Enter)
 3. Step away from the screen; it unlocks by itself when the timer reaches zero
 
 ### Emergency exit
