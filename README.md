@@ -30,7 +30,7 @@
 ## Build and run
 
 ```bash
-git clone https://github.com/<your-username>/DigitalDetox.git
+git clone https://github.com/telcoray/DigitalDetox.git
 cd DigitalDetox
 dotnet run
 ```
