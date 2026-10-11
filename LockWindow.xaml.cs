@@ -181,7 +181,7 @@ namespace DigitalDetox
             ProgressText.Text = $"{(int)(progress * 100)}% complete";
         }
 
-        private void UpdateEndTimeDisplay() => EndTimeText.Text = $"Unlocks at: {_endTime:hh:mm:ss tt}";
+        private void UpdateEndTimeDisplay() => EndTimeText.Text = $"Unlocks at: {_endTime:T}"; // System time format: 19:19:33 (it-IT), 7:19:33 PM (en-US)
 
         private void SetRandomMotivation()
         {
