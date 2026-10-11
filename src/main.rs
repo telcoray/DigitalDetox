@@ -11,7 +11,6 @@ mod keyboard_hook;
 mod session;
 mod single_instance;
 mod time_format;
-mod window_style;
 
 use session::LockSession;
 
@@ -64,14 +63,6 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    // The native window only exists once the event loop runs: style it on the first iteration
-    let weak = main_window.as_weak();
-    Timer::single_shot(Duration::ZERO, move || {
-        if let Some(window) = weak.upgrade() {
-            window_style::style_main_window(window.window());
-        }
-    });
-
     main_window.run()
 }
 
@@ -105,7 +96,6 @@ fn start_detox(main_window: &MainWindow, slot: &Rc<RefCell<Option<LockSession>>>
             // open even for a moment, Slint would consider it finished and exit
             if let Some(window) = weak.upgrade() {
                 let _ = window.show();
-                window_style::style_main_window(window.window());
                 update_unlock_preview(&window);
             }
             slot.borrow_mut().take();
