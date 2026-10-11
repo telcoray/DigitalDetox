@@ -46,6 +46,8 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 ## How to use
 
+<img src="screenshots/main-window.png" alt="Main window" width="320" align="right" />
+
 1. Enter how many minutes you want to disconnect, or click a preset
 2. Click **Start Digital Detox**
 3. Step away from the screen; it unlocks by itself when the timer reaches zero
@@ -53,6 +55,8 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 ### Emergency exit
 
 Press **Ctrl+Shift+X** three times in a row (within 2 seconds of each other). An **Emergency Exit** button appears; click it and confirm to end the session early.
+
+<br clear="right" />
 
 ## Limitations
 
