@@ -1,7 +1,7 @@
 // Full-screen lock screen shown during a detox session.
 // Equivalent of LockWindow.xaml in the C# version, with the same layout and spacing.
 
-import { Label, SymbolLabel } from "common.slint";
+import { Label, SymbolLabel, Theme } from "common.slint";
 
 // Timer whose total width never changes: every digit gets a cell as wide as "0" and is
 // centered in it, so narrow digits like "1" don't make the whole timer shift sideways.
@@ -11,8 +11,8 @@ component TimerDisplay inherits Rectangle {
     in property <length> size: 140px;
 
     // Invisible reference texts, only used to measure the cell widths
-    digit-probe := Text { text: "0"; font-family: "Segoe UI"; font-size: root.size; font-weight: 100; visible: false; }
-    colon-probe := Text { text: ":"; font-family: "Segoe UI"; font-size: root.size; font-weight: 100; visible: false; }
+    digit-probe := Text { text: "0"; font-family: Theme.font; font-size: root.size; font-weight: 100; visible: false; }
+    colon-probe := Text { text: ":"; font-family: Theme.font; font-size: root.size; font-weight: 100; visible: false; }
 
     min-height: digit-probe.preferred-height;
 
@@ -24,7 +24,7 @@ component TimerDisplay inherits Rectangle {
         for ch in root.chars: Text {
             text: ch;
             width: ch == ":" ? colon-probe.preferred-width : digit-probe.preferred-width;
-            font-family: "Segoe UI";
+            font-family: Theme.font;
             font-size: root.size;
             font-weight: 100;
             color: root.text-color;
@@ -41,14 +41,14 @@ component OutlineButton inherits Rectangle {
     width: 300px;
     height: 50px;
     border-width: 2px;
-    border-color: touch.has-hover ? #5D6D7E : #34495E;
-    background: touch.pressed ? #2C3E50 : transparent;
+    border-color: touch.has-hover ? Theme.outline-hover : Theme.outline;
+    background: touch.pressed ? Theme.line : transparent;
 
     Label {
         text: root.text;
         font-size: 16px;
         font-weight: 500;
-        color: #FFFFFF;
+        color: Theme.text;
         vertical-alignment: center;
     }
 
@@ -65,7 +65,7 @@ export component CoverWindow inherits Window {
 
     title: "Digital Detox - Locked";
     icon: @image-url("../assets/logo.svg");
-    background: #1A1A2E;
+    background: Theme.background;
     always-on-top: true;
     no-frame: true;
 
@@ -78,13 +78,13 @@ export component CoverWindow inherits Window {
             text: "Time to Disconnect";
             font-size: 28px;
             font-weight: 700;
-            color: #ECF0F1;
+            color: Theme.title;
         }
 
         TimerDisplay {
             chars: root.time-chars;
             size: 72px;
-            text-color: root.completed ? #90EE90 : #FFFFFF;
+            text-color: root.completed ? Theme.success : Theme.text;
         }
     }
 }
@@ -107,7 +107,7 @@ export component LockWindow inherits Window {
 
     title: "Digital Detox - Locked";
     icon: @image-url("../assets/logo.svg");
-    background: #1A1A2E;
+    background: Theme.background;
     always-on-top: true;
     no-frame: true;
 
@@ -140,13 +140,13 @@ export component LockWindow inherits Window {
                     text: "Time to Disconnect";
                     font-size: 28px;
                     font-weight: 700;
-                    color: #ECF0F1;
+                    color: Theme.title;
                 }
 
                 Label {
                     text: root.motivation;
                     font-size: 18px;
-                    color: #BDC3C7;
+                    color: Theme.subtle;
                 }
             }
 
@@ -156,7 +156,7 @@ export component LockWindow inherits Window {
 
                 TimerDisplay {
                     chars: root.time-chars;
-                    text-color: root.completed ? #90EE90 : #FFFFFF;
+                    text-color: root.completed ? Theme.success : Theme.text;
                 }
 
                 VerticalLayout {
@@ -165,13 +165,13 @@ export component LockWindow inherits Window {
                         symbol: "✨";
                         text: "Detox Complete!";
                         font-size: 24px;
-                        color: #90EE90;
+                        color: Theme.success;
                     }
 
                     if !root.completed: Label {
                         text: root.status-message != "" ? root.status-message : "Digital Detox in Progress";
                         font-size: 24px;
-                        color: root.status-message != "" ? #FFA500 : #95A5A6;
+                        color: root.status-message != "" ? Theme.warning : Theme.muted;
                     }
                 }
 
@@ -184,14 +184,14 @@ export component LockWindow inherits Window {
                         width: 400px;
                         height: 6px;
                         border-radius: 3px;
-                        background: #2C3E50;
+                        background: Theme.line;
 
                         Rectangle {
                             x: 0;
                             width: parent.width * root.progress;
                             height: parent.height;
                             border-radius: 3px;
-                            background: root.completed ? #90EE90 : #3498DB;
+                            background: root.completed ? Theme.success : Theme.accent;
                         }
                     }
                 }
@@ -201,7 +201,7 @@ export component LockWindow inherits Window {
                     Label {
                         text: "\{Math.floor(root.progress * 100)}% complete";
                         font-size: 14px;
-                        color: #7F8C8D;
+                        color: Theme.faint;
                     }
                 }
             }
@@ -216,13 +216,13 @@ export component LockWindow inherits Window {
                 Label {
                     text: "Your screen will unlock automatically when the timer ends.";
                     font-size: 16px;
-                    color: #7F8C8D;
+                    color: Theme.faint;
                 }
 
                 Label {
                     text: root.unlock-text;
                     font-size: 14px;
-                    color: #95A5A6;
+                    color: Theme.muted;
                 }
 
                 // Appears after Ctrl+Shift+X has been pressed three times
@@ -244,7 +244,7 @@ export component LockWindow inherits Window {
                     Label {
                         text: "Are you sure you want to end your detox early?\nYour progress will be lost.";
                         font-size: 16px;
-                        color: #ECF0F1;
+                        color: Theme.title;
                     }
 
                     HorizontalLayout {

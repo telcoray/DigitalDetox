@@ -1,8 +1,33 @@
 // Building blocks shared by every window
 
+// The app's colors and font, in one place. Every window reads them from here, so the main
+// window and the lock screen always match, and a future theme option only has to change these.
+export global Theme {
+    out property <string> font: "Segoe UI";
+
+    out property <color> background: #1A1A2E;
+    out property <color> text: #FFFFFF;           // timer, button labels
+    out property <color> title: #ECF0F1;          // headings
+    out property <color> subtle: #BDC3C7;         // secondary text
+    out property <color> muted: #95A5A6;          // descriptions, status
+    out property <color> faint: #7F8C8D;          // small print
+    out property <color> line: #2C3E50;           // tracks, dividers
+    out property <color> outline: #34495E;        // borders
+    out property <color> outline-hover: #5D6D7E;
+
+    out property <color> accent: #3498DB;
+    out property <color> accent-hover: #2980B9;
+    out property <color> accent-pressed: #1F618D;
+    out property <color> accent-soft: #3498DB33;  // selected chips, text selection
+
+    out property <color> success: #90EE90;
+    out property <color> warning: #FFA500;
+    out property <color> error: #E74C3C;
+}
+
 // Centered text in the app's font (like a shared TextBlock style in XAML)
 export component Label inherits Text {
-    font-family: "Segoe UI";
+    font-family: Theme.font;
     horizontal-alignment: center;
 }
 

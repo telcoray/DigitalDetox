@@ -51,7 +51,7 @@ impl LockSession {
 
         window.set_motivation(random_message().into());
         let unlock_at = chrono::Local::now() + duration;
-        window.set_unlock_text(format!("Unlocks at: {}", format_local_time(unlock_at)).into());
+        window.set_unlock_text(format!("Unlocks at: {}", crate::time_format::long_time(unlock_at)).into());
         update_display(&window, &[], end, duration);
 
         // Ignore Alt+F4 and other close requests: the window closes only when the detox ends
@@ -224,34 +224,6 @@ fn setup_emergency_exit(window: &LockWindow) {
     });
 }
 
-/// Formats a time the way the user's Windows settings say (like .NET's "T" format in the C# version):
-/// 19:19:33 with Italian settings, 7:19:33 PM with US settings.
-fn format_local_time(time: chrono::DateTime<chrono::Local>) -> String {
-    use chrono::Timelike;
-    use windows::Win32::Foundation::SYSTEMTIME;
-    use windows::Win32::Globalization::{GetTimeFormatEx, TIME_FORMAT_FLAGS};
-    use windows::core::PCWSTR;
-
-    // Only the time fields matter: GetTimeFormatEx ignores the date
-    let system_time = SYSTEMTIME {
-        wHour: time.hour() as u16,
-        wMinute: time.minute() as u16,
-        wSecond: time.second() as u16,
-        ..Default::default()
-    };
-    let mut buffer = [0u16; 64];
-    // Null locale and format = the current user's locale and its default time format
-    let len = unsafe {
-        GetTimeFormatEx(PCWSTR::null(), TIME_FORMAT_FLAGS(0), Some(&system_time), PCWSTR::null(), Some(&mut buffer))
-    };
-    if len > 1 {
-        // `len` counts the terminating zero
-        String::from_utf16_lossy(&buffer[..len as usize - 1])
-    } else {
-        time.format("%H:%M:%S").to_string()
-    }
-}
-
 /// Picks a message without pulling in a random-number crate: the clock's nanoseconds are random enough here
 fn random_message() -> &'static str {
     let nanos = SystemTime::now()
@@ -259,19 +231,4 @@ fn random_message() -> &'static str {
         .map(|d| d.subsec_nanos() as usize)
         .unwrap_or(0);
     MESSAGES[nanos % MESSAGES.len()]
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::TimeZone;
-
-    #[test]
-    fn local_time_uses_windows_format() {
-        let time = chrono::Local.with_ymd_and_hms(2026, 10, 11, 19, 19, 33).unwrap();
-        let text = format_local_time(time);
-        println!("formatted: {text}");
-        // 24-hour ("19:19:33") or 12-hour ("7:19:33 PM") depending on the PC's settings
-        assert!(text.contains("19:33"), "unexpected format: {text}");
-    }
 }

@@ -5,19 +5,20 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use slint::winit_030::{WinitWindowAccessor, winit};
-use slint::{ComponentHandle, SharedString, Timer};
+use slint::{ComponentHandle, SharedString, Timer, TimerMode};
 
 mod keyboard_hook;
 mod session;
 mod single_instance;
+mod time_format;
+mod window_style;
 
 use session::LockSession;
 
 // Brings in the Rust types generated from ui/app.slint (`MainWindow`, `LockWindow`, `CoverWindow`)
 slint::include_modules!();
 
-/// At most 3 digits, like MaxLength="3" in the C# version (so up to 999 minutes)
+/// At most 3 digits (so up to 999 minutes)
 const MAX_DIGITS: usize = 3;
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -40,53 +41,54 @@ fn main() -> Result<(), slint::PlatformError> {
             window.set_minutes_text(clean.into());
         }
         window.set_error_text(SharedString::new());
+        update_unlock_preview(&window);
     });
 
     let weak = main_window.as_weak();
     let start_session = session.clone();
     main_window.on_start_clicked(move || {
         let Some(window) = weak.upgrade() else { return };
-        match window.get_minutes_text().parse::<u64>() {
-            Ok(minutes) if minutes > 0 => {
-                start_detox(&window, &start_session, Duration::from_secs(minutes * 60));
-            }
-            _ => window.set_error_text("Please enter a valid number of minutes (1 or more).".into()),
+        match parse_minutes(&window) {
+            Some(minutes) => start_detox(&window, &start_session, Duration::from_secs(minutes * 60)),
+            None => window.set_error_text("Enter a number of minutes (1 or more)".into()),
         }
     });
 
-    // The native window only exists once the event loop runs: adjust it on the first iteration
+    update_unlock_preview(&main_window);
+    // The clock moves on while the window is open: keep "Unlocks at …" current
+    let preview_timer = Timer::default();
+    let weak = main_window.as_weak();
+    preview_timer.start(TimerMode::Repeated, Duration::from_secs(5), move || {
+        if let Some(window) = weak.upgrade() {
+            update_unlock_preview(&window);
+        }
+    });
+
+    // The native window only exists once the event loop runs: style it on the first iteration
     let weak = main_window.as_weak();
     Timer::single_shot(Duration::ZERO, move || {
         if let Some(window) = weak.upgrade() {
-            only_close_button(&window);
+            window_style::style_main_window(window.window());
         }
     });
 
     main_window.run()
 }
 
-/// Keeps just the X in the title bar, like the C# window (no minimize or maximize button).
-/// winit can only grey the buttons out; removing them takes the window styles from Win32 directly.
-fn only_close_button(window: &MainWindow) {
-    use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        GWL_STYLE, GetWindowLongPtrW, SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-        SetWindowLongPtrW, SetWindowPos, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
-    };
-    use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+fn parse_minutes(window: &MainWindow) -> Option<u64> {
+    window.get_minutes_text().parse::<u64>().ok().filter(|&minutes| minutes > 0)
+}
 
-    window.window().with_winit_window(|w| {
-        let Ok(handle) = w.window_handle() else { return };
-        let RawWindowHandle::Win32(handle) = handle.as_raw() else { return };
-        let hwnd = HWND(handle.hwnd.get() as *mut _);
-        unsafe {
-            let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-            let buttons = (WS_MINIMIZEBOX.0 | WS_MAXIMIZEBOX.0) as isize;
-            SetWindowLongPtrW(hwnd, GWL_STYLE, style & !buttons);
-            // Tell Windows to redraw the title bar with the new style
-            let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+/// Shows when the detox would end if started now, e.g. "Unlocks at 21:15"
+fn update_unlock_preview(window: &MainWindow) {
+    let text = match parse_minutes(window) {
+        Some(minutes) => {
+            let unlock_at = chrono::Local::now() + Duration::from_secs(minutes * 60);
+            format!("Unlocks at {}", time_format::short_time(unlock_at))
         }
-    });
+        None => String::new(),
+    };
+    window.set_unlock_text(text.into());
 }
 
 /// Swaps the main window for the lock screen, and back again when the session ends.
@@ -103,7 +105,8 @@ fn start_detox(main_window: &MainWindow, slot: &Rc<RefCell<Option<LockSession>>>
             // open even for a moment, Slint would consider it finished and exit
             if let Some(window) = weak.upgrade() {
                 let _ = window.show();
-                only_close_button(&window);
+                window_style::style_main_window(window.window());
+                update_unlock_preview(&window);
             }
             slot.borrow_mut().take();
         });
@@ -115,6 +118,6 @@ fn start_detox(main_window: &MainWindow, slot: &Rc<RefCell<Option<LockSession>>>
             // Same reason as above: hide the main window only once the lock screen is open
             let _ = main_window.hide();
         }
-        Err(e) => main_window.set_error_text(format!("Could not start the lock screen: {e}").into()),
+        Err(e) => main_window.set_error_text(format!("Couldn't start the lock screen: {e}").into()),
     }
 }
