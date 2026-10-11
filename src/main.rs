@@ -7,7 +7,10 @@ use std::time::Duration;
 
 use slint::{ComponentHandle, SharedString, Timer, TimerMode};
 
+mod brightness;
 mod keyboard_hook;
+mod power;
+mod screen;
 mod session;
 mod single_instance;
 mod time_format;
@@ -26,6 +29,9 @@ fn main() -> Result<(), slint::PlatformError> {
         single_instance::show_already_running();
         return Ok(());
     };
+
+    // If a previous run was closed abruptly during a detox, give the screen its brightness back
+    brightness::recover();
 
     let main_window = MainWindow::new()?;
     // The running session, if any. Dropping it closes the lock screen.

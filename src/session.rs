@@ -1,5 +1,6 @@
 //! One detox session: the lock screen, the overlays on the other monitors, the countdown
-//! timer and the keyboard hook. Everything is torn down when the `LockSession` is dropped.
+//! timer, the keyboard hook and the gradual dimming of the screen.
+//! Everything is torn down when the `LockSession` is dropped.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -8,7 +9,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
 use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
+use crate::brightness;
 use crate::keyboard_hook::KeyboardHook;
+use crate::power::{self, KeepSystemAwake};
+use crate::screen::{self, ScreenControl, Shade};
 use crate::{CoverWindow, LockWindow};
 
 const MESSAGES: [&str; 10] = [
@@ -36,6 +40,8 @@ pub struct LockSession {
     _timer: Timer,
     // Blocks Win, Alt+Tab & co. for as long as the session lives
     _hook: Option<KeyboardHook>,
+    // The PC doesn't sleep during the detox, or the countdown would pause
+    _awake: KeepSystemAwake,
 }
 
 impl LockSession {
@@ -63,6 +69,20 @@ impl LockSession {
         setup_emergency_exit(&window);
         keep_focus(&window);
 
+        // Gradual switching off of the screen (see screen.rs)
+        let screen = Rc::new(RefCell::new(ScreenControl::new()));
+        window.on_turn_off_screen({
+            let weak = window.as_weak();
+            let covers = covers.clone();
+            let screen = screen.clone();
+            move || {
+                if let Some(window) = weak.upgrade() {
+                    let shade = screen.borrow_mut().turn_off_now();
+                    apply_shade(&window, &covers.borrow(), shade);
+                }
+            }
+        });
+
         // Same approach as the C# version: tick every 250 ms and recompute from the end time
         let timer = Timer::default();
         let weak = window.as_weak();
@@ -75,6 +95,19 @@ impl LockSession {
             let covers = timer_covers.borrow();
             if update_display(&window, &covers, end, duration) {
                 complete_detox(&window, &covers, on_end.clone());
+            } else if let Some(shade) = screen.borrow_mut().tick(window.window()) {
+                apply_shade(&window, &covers, shade);
+            }
+        });
+
+        // Right after the lock screen appears, gently dim it and lower the laptop's brightness:
+        // the first signal of "switching off"
+        let weak = window.as_weak();
+        let dim_covers = covers.clone();
+        Timer::single_shot(Duration::from_millis(500), move || {
+            if let Some(window) = weak.upgrade() {
+                apply_shade(&window, &dim_covers.borrow(), Shade { level: screen::DIM_LEVEL, fade: screen::DIM_FADE });
+                brightness::lower();
             }
         });
 
@@ -96,7 +129,7 @@ impl LockSession {
         window.window().set_fullscreen(true);
         window.show()?;
 
-        Ok(Self { window, covers, _timer: timer, _hook: hook })
+        Ok(Self { window, covers, _timer: timer, _hook: hook, _awake: KeepSystemAwake::new() })
     }
 }
 
@@ -106,6 +139,8 @@ impl Drop for LockSession {
             let _ = cover.hide();
         }
         let _ = self.window.hide();
+        // Also covers the emergency exit; does nothing if it was already restored at the end
+        brightness::restore();
         // The fields are dropped right after this: the timer stops and the keyboard hook is removed
     }
 }
@@ -142,8 +177,25 @@ fn complete_detox(window: &LockWindow, covers: &[CoverWindow], on_end: Rc<dyn Fn
     for cover in covers {
         cover.set_completed(true);
     }
-    // Leave the "Detox Complete!" message on screen for 3 seconds, then end the session
-    Timer::single_shot(Duration::from_secs(3), move || on_end());
+    // The detox is over: monitors back on, screen back to full brightness
+    power::wake_monitors();
+    brightness::restore();
+    apply_shade(window, covers, Shade { level: 0.0, fade: Duration::from_millis(600) });
+    // Leave "Detox Complete!" on screen for 5 seconds (monitors can take a moment to wake up),
+    // then end the session
+    Timer::single_shot(Duration::from_secs(5), move || on_end());
+}
+
+/// Dims, darkens or brightens the lock screen and every cover window together
+fn apply_shade(window: &LockWindow, covers: &[CoverWindow], shade: Shade) {
+    // Slint durations are milliseconds. The fade is set first, so the level change uses it.
+    let fade = shade.fade.as_millis() as i64;
+    window.set_shade_fade(fade);
+    window.set_shade_level(shade.level);
+    for cover in covers {
+        cover.set_shade_fade(fade);
+        cover.set_shade_level(shade.level);
+    }
 }
 
 /// Puts the lock screen on the primary monitor and a `CoverWindow` on every other one.
@@ -167,6 +219,8 @@ fn cover_secondary_monitors(window: &LockWindow, covers: &mut Vec<CoverWindow>) 
 fn create_cover(monitor: &winit::monitor::MonitorHandle, lock: &LockWindow) -> Result<CoverWindow, slint::PlatformError> {
     let cover = CoverWindow::new()?;
     cover.set_time_chars(lock.get_time_chars());
+    // Start as dark as the lock screen currently is
+    cover.set_shade_level(lock.get_shade_level());
     cover.window().on_close_requested(|| CloseRequestResponse::KeepWindowShown);
 
     // Open the window on its monitor, then make it full screen there

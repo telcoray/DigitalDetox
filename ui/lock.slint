@@ -58,10 +58,29 @@ component OutlineButton inherits Rectangle {
     }
 }
 
+// Black layer over the whole screen, used to dim it or turn it black. Rust sets both the level
+// and how long the change takes: slow and gentle when darkening, quick when coming back.
+component Shade inherits Rectangle {
+    in property <float> level;          // 0 = invisible, 1 = completely black
+    in property <duration> fade;
+
+    width: 100%;
+    height: 100%;
+    background: black;
+    opacity: root.level;
+
+    animate opacity {
+        duration: root.fade;
+        easing: ease-in-out;
+    }
+}
+
 // Shown on every secondary monitor: same background, title and timer, nothing to interact with
 export component CoverWindow inherits Window {
     in property <[string]> time-chars;
     in property <bool> completed: false;
+    in property <float> shade-level;
+    in property <duration> shade-fade;
 
     title: "Digital Detox - Locked";
     icon: @image-url("../assets/logo.svg");
@@ -87,6 +106,11 @@ export component CoverWindow inherits Window {
             text-color: root.completed ? Theme.success : Theme.text;
         }
     }
+
+    Shade {
+        level: root.shade-level;
+        fade: root.shade-fade;
+    }
 }
 
 export component LockWindow inherits Window {
@@ -102,8 +126,13 @@ export component LockWindow inherits Window {
     in-out property <bool> emergency-visible: false;
     property <bool> confirm-visible: false;
 
+    // How dark the screen is (see Shade); driven by Rust's idle tracking
+    in property <float> shade-level;
+    in property <duration> shade-fade;
+
     callback emergency-key-pressed();
     callback exit-requested();
+    callback turn-off-screen();
 
     title: "Digital Detox - Locked";
     icon: @image-url("../assets/logo.svg");
@@ -225,6 +254,19 @@ export component LockWindow inherits Window {
                     color: Theme.muted;
                 }
 
+                // So you don't end up staring at the countdown: black screen now, monitor off shortly after
+                if !root.completed && !root.confirm-visible: HorizontalLayout {
+                    alignment: center;
+                    padding-top: 15px;
+
+                    OutlineButton {
+                        width: 240px;
+                        height: 44px;
+                        text: "Turn off screen";
+                        clicked => { root.turn-off-screen(); }
+                    }
+                }
+
                 // Appears after Ctrl+Shift+X has been pressed three times
                 if root.emergency-visible && !root.confirm-visible: HorizontalLayout {
                     alignment: center;
@@ -269,6 +311,12 @@ export component LockWindow inherits Window {
                     }
                 }
             }
+        }
+
+        // On top of everything else
+        Shade {
+            level: root.shade-level;
+            fade: root.shade-fade;
         }
     }
 }
