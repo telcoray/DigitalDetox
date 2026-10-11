@@ -22,12 +22,15 @@
 - **Unlocks automatically** when the time is up
 - **Emergency exit** if you really need your computer back
 
-## Requirements
+## Download
 
-- Windows 10 or 11
-- [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) to run the app, or the .NET 8 SDK to build it
+Grab the latest `DigitalDetox-vX.Y.Z-win-x64.zip` from the [Releases page](https://github.com/telcoray/DigitalDetox/releases), unzip it and run `DigitalDetox.exe`. Nothing else to install.
 
-## Build and run
+The app asks for administrator rights when it starts (UAC prompt). Since the executable isn't code-signed, Windows SmartScreen may warn you the first time: click **More info → Run anyway**.
+
+## Build from source
+
+Requires Windows 10 or 11 and the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 
 ```bash
 git clone https://github.com/telcoray/DigitalDetox.git
@@ -35,13 +38,11 @@ cd DigitalDetox
 dotnet run
 ```
 
-To create a standalone build:
+To create a standalone single-file build (like the one in Releases):
 
 ```bash
-dotnet publish -c Release -r win-x64 --self-contained false
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
 ```
-
-The app asks for administrator rights when it starts (UAC prompt).
 
 ## How to use
 

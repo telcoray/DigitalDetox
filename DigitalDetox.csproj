@@ -8,6 +8,10 @@
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>assets\icon.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Authors>telcoray</Authors>
+    <Product>Digital Detox</Product>
+    <Copyright>Copyright (c) 2026 telcoray</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

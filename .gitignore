@@ -11,3 +11,6 @@ obj/
 # OS files
 Thumbs.db
 Desktop.ini
+
+# Release packages (uploaded to GitHub Releases, not committed)
+release/
