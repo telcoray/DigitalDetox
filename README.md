@@ -23,7 +23,7 @@
 - **A calming message** picked at random for each session
 - **Unlocks automatically** when the time is up
 - **Emergency exit** if you really need your computer back
-- **Lives in the notification area**: closing or minimizing the window keeps the app next to the clock. Left-click the icon to open it, right-click to start a detox right away or quit
+- **Lives in the system tray**: closing or minimizing the window keeps the app in the system tray. Left-click the tray icon to open it, right-click the tray icon to start a detox right away or quit
 - **Lightweight**: a single ~12 MB executable that uses about 5 MB of memory, no administrator rights needed
 
 ## Download
