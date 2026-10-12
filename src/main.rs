@@ -69,7 +69,32 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    repaint_after_restore(&main_window);
+
     main_window.run()
+}
+
+/// Works around a Slint software-renderer bug on Windows: when the window comes back from being
+/// minimized, only the regions that changed are repainted and the rest stays empty. Flipping
+/// `repaint-flip` changes a full-window backdrop invisibly, which forces a complete repaint.
+fn repaint_after_restore(window: &MainWindow) {
+    use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
+
+    // Windows reports minimizing as a resize to 0x0, and restoring as a resize back
+    let minimized = std::cell::Cell::new(false);
+    let weak = window.as_weak();
+    window.window().on_winit_window_event(move |_, event| {
+        if let WindowEvent::Resized(size) = event {
+            if size.width == 0 || size.height == 0 {
+                minimized.set(true);
+            } else if minimized.replace(false)
+                && let Some(window) = weak.upgrade()
+            {
+                window.set_repaint_flip(!window.get_repaint_flip());
+            }
+        }
+        EventResult::Propagate
+    });
 }
 
 fn parse_minutes(window: &MainWindow) -> Option<u64> {
