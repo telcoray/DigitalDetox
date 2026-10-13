@@ -60,7 +60,7 @@ pub struct Shade {
 impl ScreenControl {
     pub fn new() -> Self {
         let can_power_off = !power::has_modern_standby();
-        eprintln!("[screen] monitor power-off {}", if can_power_off { "enabled" } else { "disabled (Modern Standby)" });
+        log!("[screen] monitor power-off {}", if can_power_off { "enabled" } else { "disabled (Modern Standby)" });
         Self { state: State::Awake { black_after: FIRST_BLACK_AFTER }, since: Instant::now(), can_power_off }
     }
 
@@ -74,7 +74,10 @@ impl ScreenControl {
 
         match self.state {
             State::Awake { black_after } if idle >= black_after => Some(self.go_black(IDLE_OFF_AFTER)),
-            State::Black { .. } | State::Off if woken => Some(self.wake()),
+            State::Black { .. } | State::Off if woken => {
+                log!("[screen] input detected (last input {idle:.1?} ago, {in_state:.0?} into {:?})", self.state);
+                Some(self.wake())
+            }
             State::Black { off_after } if self.can_power_off && in_state >= off_after => {
                 power::turn_monitors_off(window);
                 self.enter(State::Off);
@@ -101,7 +104,7 @@ impl ScreenControl {
 
     fn enter(&mut self, state: State) {
         // Visible in the console of `cargo run`, handy to check the timings
-        eprintln!("[screen] {:?} -> {:?} after {:.0?}", self.state, state, self.since.elapsed());
+        log!("[screen] {:?} -> {:?} after {:.0?}", self.state, state, self.since.elapsed());
         self.state = state;
         self.since = Instant::now();
     }

@@ -8,12 +8,20 @@ use std::time::Duration;
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
 use slint::{CloseRequestResponse, ComponentHandle, SharedString, Timer, TimerMode};
 
+/// Diagnostic message, to the console and to the log file (see log.rs).
+/// Defined before the modules so they can all use it.
+macro_rules! log {
+    ($($arg:tt)*) => { $crate::log::write(&format!($($arg)*)) };
+}
+
 mod brightness;
 mod keyboard_hook;
+mod log;
 mod power;
 mod screen;
 mod session;
 mod single_instance;
+mod taskbar;
 mod time_format;
 mod tray;
 
@@ -70,11 +78,13 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     };
 
+    log::start();
+
     // If a previous run was closed abruptly during a detox, give the screen its brightness back
     brightness::recover();
 
     let window = MainWindow::new()?;
-    let tray = tray::Tray::new().inspect_err(|e| eprintln!("Could not create the tray icon: {e}")).ok();
+    let tray = tray::Tray::new().inspect_err(|e| log!("Could not create the tray icon: {e}")).ok();
     setup_main_window(&window, tray.is_some());
 
     // The clock moves on while the window is open: keep "Unlocks at …" current
@@ -101,7 +111,7 @@ fn main() -> Result<(), slint::PlatformError> {
 }
 
 fn handle(app: &Rc<App>, action: Action) {
-    eprintln!("[app] action {action:?} (window visible: {})", app.window.window().is_visible());
+    log!("[app] action {action:?} (window visible: {})", app.window.window().is_visible());
     // Nothing from outside may interfere with a running detox
     if app.session.borrow().is_some() {
         return;
@@ -174,7 +184,7 @@ fn setup_main_window(window: &MainWindow, has_tray: bool) {
 
 /// Shows the main window (restoring it if it was minimized) and brings it to the front
 fn show_window(app: &App) {
-    eprintln!("[app] show_window");
+    log!("[app] show_window");
     let window = &app.window;
     let _ = window.show();
     window.window().with_winit_window(|w| {
@@ -214,7 +224,7 @@ fn update_unlock_preview(window: &MainWindow) {
 /// back only if it was open before (a detox started from the tray menu goes back to the tray).
 fn start_detox(app: &Rc<App>, duration: Duration) {
     let reopen = app.window.window().is_visible();
-    eprintln!("[app] detox starting, main window will {}be reopened at the end", if reopen { "" } else { "not " });
+    log!("[app] detox starting, main window will {}be reopened at the end", if reopen { "" } else { "not " });
     let weak = Rc::downgrade(app);
     let on_end = move || {
         // Called from inside the lock screen's own callbacks: defer, so the session isn't
@@ -222,7 +232,7 @@ fn start_detox(app: &Rc<App>, duration: Duration) {
         let weak = weak.clone();
         Timer::single_shot(Duration::ZERO, move || {
             let Some(app) = weak.upgrade() else { return };
-            eprintln!("[app] detox ended, reopen: {reopen}");
+            log!("[app] detox ended, reopen: {reopen}");
             app.session.borrow_mut().take();
             if let Some(tray) = &app.tray {
                 tray.set_detox_running(false);

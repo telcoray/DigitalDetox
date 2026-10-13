@@ -53,7 +53,7 @@ fn send(command: Command) {
             // A WMI connection belongs to the thread that created it, so it's created here
             let wmi = match WMIConnection::with_namespace_path("ROOT\\WMI") {
                 Ok(wmi) => wmi,
-                Err(e) => return eprintln!("Brightness control unavailable: {e}"),
+                Err(e) => return log!("Brightness control unavailable: {e}"),
             };
             for command in receiver {
                 match command {
@@ -132,8 +132,7 @@ fn set_brightness(wmi: &WMIConnection, value: u8) {
 // Backup of the original brightness, in %LOCALAPPDATA%\DigitalDetox
 
 fn backup_path() -> PathBuf {
-    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    base.join("DigitalDetox").join("brightness-backup.txt")
+    crate::log::data_dir().join("brightness-backup.txt")
 }
 
 fn read_backup() -> Option<u8> {

@@ -11,6 +11,7 @@ use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, Timer,
 
 use crate::brightness;
 use crate::keyboard_hook::KeyboardHook;
+use crate::taskbar;
 use crate::power::{self, KeepSystemAwake};
 use crate::screen::{self, ScreenControl, Shade};
 use crate::{CoverWindow, LockWindow};
@@ -123,7 +124,7 @@ impl LockSession {
 
         // If the hook can't be installed the lock screen still works, just without the shortcut blocking
         let hook = KeyboardHook::install()
-            .inspect_err(|e| eprintln!("Could not install the keyboard hook: {e}"))
+            .inspect_err(|e| log!("Could not install the keyboard hook: {e}"))
             .ok();
 
         window.window().set_fullscreen(true);
@@ -207,11 +208,13 @@ fn cover_secondary_monitors(window: &LockWindow, covers: &mut Vec<CoverWindow>) 
             .filter(|m| Some(m) != primary.as_ref())
             .collect::<Vec<_>>()
     });
+    taskbar::mark_fullscreen(window.window());
+    log!("[session] {} secondary monitor(s) to cover", secondary.as_ref().map_or(0, Vec::len));
 
     for monitor in secondary.unwrap_or_default() {
         match create_cover(&monitor, window) {
             Ok(cover) => covers.push(cover),
-            Err(e) => eprintln!("Could not cover monitor {:?}: {e}", monitor.name()),
+            Err(e) => log!("Could not cover monitor {:?}: {e}", monitor.name()),
         }
     }
 }
@@ -231,6 +234,8 @@ fn create_cover(monitor: &winit::monitor::MonitorHandle, lock: &LockWindow) -> R
     cover.window().with_winit_window(|w| {
         w.set_fullscreen(Some(winit::window::Fullscreen::Borderless(Some(monitor.clone()))));
     });
+    // Otherwise the taskbar of that monitor stays visible on top (see taskbar.rs)
+    taskbar::mark_fullscreen(cover.window());
     Ok(cover)
 }
 

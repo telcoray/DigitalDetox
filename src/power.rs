@@ -40,12 +40,12 @@ pub fn idle_time() -> Duration {
 /// Any mouse movement or key press switches them back on (Windows handles that by itself).
 pub fn turn_monitors_off(window: &slint::Window) {
     let Some(hwnd) = window.with_winit_window(hwnd_of).flatten() else {
-        return eprintln!("[power] can't switch the monitors off: no native window");
+        return log!("[power] can't switch the monitors off: no native window");
     };
     // 2 = power off. Posted rather than sent, so we never wait on the system to handle it.
     match unsafe { PostMessageW(Some(hwnd), WM_SYSCOMMAND, WPARAM(SC_MONITORPOWER as usize), LPARAM(2)) } {
-        Ok(()) => eprintln!("[power] monitors off requested"),
-        Err(e) => eprintln!("[power] can't switch the monitors off: {e}"),
+        Ok(()) => log!("[power] monitors off requested"),
+        Err(e) => log!("[power] can't switch the monitors off: {e}"),
     }
 }
 
@@ -85,7 +85,7 @@ impl Drop for KeepSystemAwake {
     }
 }
 
-fn hwnd_of(window: &winit::window::Window) -> Option<HWND> {
+pub(crate) fn hwnd_of(window: &winit::window::Window) -> Option<HWND> {
     let handle = window.window_handle().ok()?;
     match handle.as_raw() {
         RawWindowHandle::Win32(handle) => Some(HWND(handle.hwnd.get() as *mut _)),
