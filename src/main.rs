@@ -14,6 +14,7 @@ macro_rules! log {
     ($($arg:tt)*) => { $crate::log::write(&format!($($arg)*)) };
 }
 
+mod autostart;
 mod brightness;
 mod foreground;
 mod keyboard_hook;
@@ -40,6 +41,7 @@ const MAX_DIGITS: usize = 3;
 pub enum Action {
     Open,
     Start(u64),
+    ToggleAutostart,
     Quit,
 }
 
@@ -86,8 +88,13 @@ fn main() -> Result<(), slint::PlatformError> {
     brightness::recover();
     taskbar::recover();
 
+    // Started with Windows: stay in the system tray until the user opens the window
+    let background = std::env::args().any(|arg| arg == autostart::BACKGROUND_FLAG);
+
     let window = MainWindow::new()?;
-    let tray = tray::Tray::new().inspect_err(|e| log!("Could not create the tray icon: {e}")).ok();
+    let tray = tray::Tray::new(autostart::is_enabled())
+        .inspect_err(|e| log!("Could not create the tray icon: {e}"))
+        .ok();
     setup_main_window(&window, tray.is_some());
 
     // The clock moves on while the window is open: keep "Unlocks at …" current
@@ -103,7 +110,12 @@ fn main() -> Result<(), slint::PlatformError> {
     APP.with(|slot| *slot.borrow_mut() = Some(app.clone()));
     instance.listen_for_show_requests(|| dispatch(Action::Open));
 
-    show_window(&app);
+    // Without a tray icon there would be no way to reach a hidden window, so then it opens anyway
+    if background && app.tray.is_some() {
+        log!("[app] started in the background");
+    } else {
+        show_window(&app);
+    }
     drop(app);
     // Keeps running with every window hidden, until Quit is chosen from the tray menu
     slint::run_event_loop_until_quit()?;
@@ -122,9 +134,21 @@ fn handle(app: &Rc<App>, action: Action) {
     match action {
         Action::Open => show_window(app),
         Action::Start(minutes) => start_detox(app, Duration::from_secs(minutes * 60)),
+        Action::ToggleAutostart => toggle_autostart(app),
         Action::Quit => {
             let _ = slint::quit_event_loop();
         }
+    }
+}
+
+fn toggle_autostart(app: &App) {
+    let enable = !autostart::is_enabled();
+    match autostart::set_enabled(enable) {
+        Ok(()) => log!("[autostart] start with Windows turned {}", if enable { "on" } else { "off" }),
+        Err(e) => log!("[autostart] couldn't change start with Windows: {e}"),
+    }
+    if let Some(tray) = &app.tray {
+        tray.set_autostart(autostart::is_enabled());
     }
 }
 
