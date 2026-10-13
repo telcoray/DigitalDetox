@@ -19,11 +19,12 @@
 - **The screen switches off gradually**: it dims as soon as the detox starts (on laptops the brightness drops to the minimum), turns black after a minute without input, and on desktop PCs the monitor is switched off a couple of minutes later. Move the mouse to see the timer again, or press **Turn off screen** to go dark right away. Everything comes back at the end.
 - **No pauses**: the PC is kept from going to sleep until the detox is over
 - **All monitors covered**: secondary screens get their own overlay with the timer
-- **Shortcuts blocked** while locked: Windows key, Alt+Tab, Alt+F4, Alt+Esc, Ctrl+Esc and Ctrl+Shift+Esc
+- **Shortcuts blocked** while locked: Windows key, Alt+Tab, Alt+F4, Alt+Esc, Ctrl+Esc and Ctrl+Shift+Esc. The taskbar is hidden on every monitor, and the Start menu is closed right away if it opens
 - **A calming message** picked at random for each session
 - **Unlocks automatically** when the time is up
 - **Emergency exit** if you really need your computer back
 - **Lives in the system tray**: closing or minimizing the window keeps the app in the system tray. Left-click the tray icon to open it, right-click the tray icon to start a detox right away or quit
+- **Start with Windows** (optional): tick it in the tray menu and the app starts at sign-in, quietly in the system tray
 - **Lightweight**: a single ~12 MB executable that uses about 5 MB of memory, no administrator rights needed
 
 ## Download
