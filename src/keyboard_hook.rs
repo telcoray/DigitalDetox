@@ -45,6 +45,8 @@ impl KeyboardHook {
                     return;
                 }
             };
+            // The same responsive thread closes Start the moment it opens (see foreground.rs)
+            let flyouts = crate::foreground::watch_shell_flyouts();
             // Makes sure the thread has a message queue before Drop can post WM_QUIT to it
             let mut msg = MSG::default();
             let _ = PeekMessageW(&mut msg, None, 0, 0, PM_NOREMOVE);
@@ -53,6 +55,7 @@ impl KeyboardHook {
             // Pumping messages is what makes Windows call hook_proc. GetMessageW returns 0 on
             // WM_QUIT and -1 on error: both end the loop.
             while GetMessageW(&mut msg, None, 0, 0).0 > 0 {}
+            crate::foreground::unwatch_shell_flyouts(flyouts);
             let _ = UnhookWindowsHookEx(hook);
         });
 

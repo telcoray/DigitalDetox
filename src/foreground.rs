@@ -6,16 +6,23 @@
 //! - Start, Search and the other shell flyouts don't give the foreground away, not even with the
 //!   Alt-key trick, so they get an Escape key press, which closes them;
 //! - any other window: the lock screen takes the foreground back.
+//!
+//! The flyouts are also closed the moment they become active, without waiting for the next tick
+//! (`watch_shell_flyouts`): otherwise Start stayed on screen for about half a second.
 
 use std::cell::Cell;
 
 use slint::winit_030::WinitWindowAccessor;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Threading::GetCurrentProcessId;
+use windows::Win32::UI::Accessibility::{HWINEVENTHOOK, SetWinEventHook, UnhookWinEvent};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput, VK_ESCAPE,
 };
-use windows::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow, GetWindowThreadProcessId};
+use windows::Win32::UI::WindowsAndMessaging::{
+    EVENT_SYSTEM_FOREGROUND, GetClassNameW, GetForegroundWindow, GetWindowThreadProcessId, WINEVENT_OUTOFCONTEXT,
+    WINEVENT_SKIPOWNPROCESS,
+};
 
 /// The window class of Start, Search, the notification center and the other shell flyouts
 const SHELL_FLYOUT_CLASS: &str = "Windows.UI.Core.CoreWindow";
@@ -44,6 +51,43 @@ impl ForegroundGuard {
             // winit's focus_window uses the Alt-key trick that SetForegroundWindow needs to work from the background
             lock.with_winit_window(|w| w.focus_window());
         }
+    }
+}
+
+/// Asks Windows to call `on_foreground` whenever a window of another process becomes the active
+/// one. The callback runs through the message loop of the calling thread, which must pump
+/// messages and stay responsive: the keyboard hook's thread does both.
+pub fn watch_shell_flyouts() -> HWINEVENTHOOK {
+    unsafe {
+        SetWinEventHook(
+            EVENT_SYSTEM_FOREGROUND,
+            EVENT_SYSTEM_FOREGROUND,
+            None,
+            Some(on_foreground),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+        )
+    }
+}
+
+pub fn unwatch_shell_flyouts(hook: HWINEVENTHOOK) {
+    unsafe {
+        let _ = UnhookWinEvent(hook);
+    }
+}
+
+unsafe extern "system" fn on_foreground(
+    _hook: HWINEVENTHOOK,
+    _event: u32,
+    hwnd: HWND,
+    _object: i32,
+    _child: i32,
+    _thread: u32,
+    _time: u32,
+) {
+    if class_name(hwnd) == SHELL_FLYOUT_CLASS {
+        press_escape();
     }
 }
 
