@@ -15,6 +15,7 @@ macro_rules! log {
 }
 
 mod brightness;
+mod foreground;
 mod keyboard_hook;
 mod log;
 mod power;
@@ -80,8 +81,10 @@ fn main() -> Result<(), slint::PlatformError> {
 
     log::start();
 
-    // If a previous run was closed abruptly during a detox, give the screen its brightness back
+    // If a previous run was closed abruptly during a detox, give the screen its brightness and
+    // the taskbars back
     brightness::recover();
+    taskbar::recover();
 
     let window = MainWindow::new()?;
     let tray = tray::Tray::new().inspect_err(|e| log!("Could not create the tray icon: {e}")).ok();

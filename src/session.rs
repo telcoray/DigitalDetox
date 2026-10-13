@@ -10,8 +10,9 @@ use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
 use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
 use crate::brightness;
+use crate::foreground::ForegroundGuard;
 use crate::keyboard_hook::KeyboardHook;
-use crate::taskbar;
+use crate::taskbar::{self, HiddenTaskbars};
 use crate::power::{self, KeepSystemAwake};
 use crate::screen::{self, ScreenControl, Shade};
 use crate::{CoverWindow, LockWindow};
@@ -43,6 +44,9 @@ pub struct LockSession {
     _hook: Option<KeyboardHook>,
     // The PC doesn't sleep during the detox, or the countdown would pause
     _awake: KeepSystemAwake,
+    // No taskbar (nor Start button) to click during the detox. Shared with the timer, which
+    // hides it again when Start brings it back.
+    _taskbars: Rc<HiddenTaskbars>,
 }
 
 impl LockSession {
@@ -88,11 +92,17 @@ impl LockSession {
         let timer = Timer::default();
         let weak = window.as_weak();
         let timer_covers = covers.clone();
+        let foreground = ForegroundGuard::default();
+        let taskbars = Rc::new(HiddenTaskbars::hide());
+        let timer_taskbars = taskbars.clone();
         timer.start(TimerMode::Repeated, Duration::from_millis(250), move || {
             let Some(window) = weak.upgrade() else { return };
             if window.get_completed() {
                 return;
             }
+            // Start or another app may have taken the focus (see foreground.rs)
+            foreground.check(window.window());
+            timer_taskbars.keep_hidden();
             let covers = timer_covers.borrow();
             if update_display(&window, &covers, end, duration) {
                 complete_detox(&window, &covers, on_end.clone());
@@ -130,7 +140,14 @@ impl LockSession {
         window.window().set_fullscreen(true);
         window.show()?;
 
-        Ok(Self { window, covers, _timer: timer, _hook: hook, _awake: KeepSystemAwake::new() })
+        Ok(Self {
+            window,
+            covers,
+            _timer: timer,
+            _hook: hook,
+            _awake: KeepSystemAwake::new(),
+            _taskbars: taskbars,
+        })
     }
 }
 
