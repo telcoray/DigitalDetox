@@ -1,0 +1,70 @@
+# Pushing a tag like v2.4.0 builds the release zip and creates a *draft* GitHub release with it.
+# The notes are then written and the release is published by hand, after a final check.
+#
+# Run it by hand (Actions → Release → Run workflow) to only build the zip, as an artifact,
+# without creating any release.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Read the version from Cargo.toml
+        id: version
+        shell: pwsh
+        run: |
+          $version = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version
+          "version=$version" >> $env:GITHUB_OUTPUT
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            Write-Error "Tag $env:GITHUB_REF_NAME doesn't match version $version in Cargo.toml"
+            exit 1
+          }
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Test
+        run: cargo test --release --locked
+
+      # Same layout as the releases made by hand: DigitalDetox.exe + LICENSE
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $zip = "DigitalDetox-v${{ steps.version.outputs.version }}-win-x64.zip"
+          New-Item -ItemType Directory -Force package, dist | Out-Null
+          Copy-Item target/release/digital-detox.exe package/DigitalDetox.exe
+          Copy-Item LICENSE package/
+          Compress-Archive -Path package/* -DestinationPath "dist/$zip"
+          "zip=dist/$zip" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-zip
+          path: ${{ steps.package.outputs.zip }}
+
+      - name: Create draft release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME "${{ steps.package.outputs.zip }}" `
+            --draft --verify-tag `
+            --title "Digital Detox $env:GITHUB_REF_NAME" `
+            --notes "Release notes to be written before publishing."
