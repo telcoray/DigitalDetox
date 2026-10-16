@@ -1,7 +1,8 @@
-# Pushing a tag like v2.4.0 builds the release zip and creates a *draft* GitHub release with it.
-# The notes are then written and the release is published by hand, after a final check.
+# Pushing a tag like v2.4.0 builds the release zip and the installer, and creates a *draft*
+# GitHub release with both. The notes are then written and the release is published by hand,
+# after a final check.
 #
-# Run it by hand (Actions → Release → Run workflow) to only build the zip, as an artifact,
+# Run it by hand (Actions → Release → Run workflow) to only build the files, as an artifact,
 # without creating any release.
 
 name: Release
@@ -53,10 +54,25 @@ jobs:
           Compress-Archive -Path package/* -DestinationPath "dist/$zip"
           "zip=dist/$zip" >> $env:GITHUB_OUTPUT
 
+      # Inno Setup may not be preinstalled on the runner image
+      - name: Build installer
+        id: installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+          }
+          & $iscc /Q "/DAppVersion=${{ steps.version.outputs.version }}" installer\DigitalDetox.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $setup = "DigitalDetox-v${{ steps.version.outputs.version }}-setup-x64.exe"
+          Move-Item "release/$setup" "dist/$setup"
+          "setup=dist/$setup" >> $env:GITHUB_OUTPUT
+
       - uses: actions/upload-artifact@v4
         with:
-          name: release-zip
-          path: ${{ steps.package.outputs.zip }}
+          name: release-files
+          path: dist/
 
       - name: Create draft release
         if: github.ref_type == 'tag'
@@ -64,7 +80,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME "${{ steps.package.outputs.zip }}" `
+          gh release create $env:GITHUB_REF_NAME "${{ steps.installer.outputs.setup }}" "${{ steps.package.outputs.zip }}" `
             --draft --verify-tag `
             --title "Digital Detox $env:GITHUB_REF_NAME" `
             --notes "Release notes to be written before publishing."

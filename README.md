@@ -29,9 +29,12 @@
 
 ## Download
 
-Grab the latest `DigitalDetox-vX.Y.Z-win-x64.zip` from the [Releases page](https://github.com/telcoray/DigitalDetox/releases), unzip it and run `DigitalDetox.exe`. Nothing else to install.
+From the [Releases page](https://github.com/telcoray/DigitalDetox/releases), pick one:
 
-Since the executable isn't code-signed, Windows SmartScreen may warn you the first time: click **More info → Run anyway**.
+- **Installer** (`DigitalDetox-vX.Y.Z-setup-x64.exe`): adds Digital Detox to the Start menu, optionally to the desktop, and to Windows' list of installed apps for easy removal. No administrator rights needed.
+- **Portable** (`DigitalDetox-vX.Y.Z-win-x64.zip`): unzip it anywhere and run `DigitalDetox.exe`. Nothing else to install.
+
+Since the files aren't code-signed, Windows SmartScreen may warn you the first time: click **More info → Run anyway**.
 
 ## Build from source
 
