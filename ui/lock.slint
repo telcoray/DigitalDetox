@@ -58,6 +58,59 @@ component OutlineButton inherits Rectangle {
     }
 }
 
+// Breathing guide for Buteyko's reduced breathing. Two fixed rings mark the smallest and the
+// largest size; the circle between them grows while breathing in, shrinks while breathing out
+// and rests on the inner ring during the pause. It moves at a steady speed, so how far it still
+// has to go shows how long the current phase will last.
+component BreathingGuide inherits Rectangle {
+    in property <duration> inhale: 2s;
+    in property <duration> exhale: 3s;
+    in property <duration> pause: 4s;
+
+    // The layout gives it 220px when there's room, less on short screens
+    preferred-width: 220px;
+    preferred-height: 220px;
+    min-width: 120px;
+    min-height: 120px;
+
+    property <length> size: min(root.width, root.height);
+    property <length> inner: root.size * 0.4;
+    // Where we are in the current breath, in milliseconds
+    property <float> in-ms: root.inhale / 1ms;
+    property <float> out-ms: root.exhale / 1ms;
+    property <float> t: Math.mod(animation-tick() / 1ms, (root.inhale + root.exhale + root.pause) / 1ms);
+    // 0 = on the inner ring, 1 = on the outer ring
+    property <float> breath: root.t < root.in-ms ? root.t / root.in-ms
+        : root.t < root.in-ms + root.out-ms ? 1 - (root.t - root.in-ms) / root.out-ms
+        : 0;
+
+    Rectangle {
+        width: root.size;
+        height: root.size;
+        border-radius: self.width / 2;
+        border-width: 2px;
+        border-color: Theme.outline;
+    }
+
+    Rectangle {
+        width: root.inner;
+        height: root.inner;
+        border-radius: self.width / 2;
+        border-width: 2px;
+        border-color: Theme.outline;
+    }
+
+    // Drawn last: during the pause it covers the inner ring, which then stays blue too
+    Rectangle {
+        width: root.inner + (root.size - root.inner) * root.breath;
+        height: self.width;
+        border-radius: self.width / 2;
+        border-width: 2px;
+        border-color: Theme.accent;
+        background: Theme.accent-soft;
+    }
+}
+
 // Black layer over the whole screen, used to dim it or turn it black. Rust sets both the level
 // and how long the change takes: slow and gentle when darkening, quick when coming back.
 component Shade inherits Rectangle {
@@ -129,10 +182,18 @@ export component LockWindow inherits Window {
     // How dark the screen is (see Shade); driven by Rust's idle tracking
     in property <float> shade-level;
     in property <duration> shade-fade;
+    // Shown during the last minute before the screen turns black
+    in property <bool> more-time-visible: false;
+
+    // The breathing guide fades out with the screen and then stops, so it doesn't keep
+    // redrawing a black screen for the rest of the detox
+    property <float> guide-opacity: root.completed || root.shade-level >= 1 ? 0 : 1;
+    animate guide-opacity { duration: root.shade-fade; }
 
     callback emergency-key-pressed();
     callback exit-requested();
     callback turn-off-screen();
+    callback more-time();
 
     title: "Digital Detox - Locked";
     icon: @image-url("../assets/logo.svg");
@@ -176,6 +237,16 @@ export component LockWindow inherits Window {
                     text: root.motivation;
                     font-size: 18px;
                     color: Theme.subtle;
+                }
+
+                HorizontalLayout {
+                    alignment: center;
+                    padding-top: 20px;
+
+                    BreathingGuide {
+                        opacity: root.guide-opacity;
+                        visible: root.guide-opacity > 0;
+                    }
                 }
             }
 
@@ -255,15 +326,24 @@ export component LockWindow inherits Window {
                 }
 
                 // So you don't end up staring at the countdown: black screen now, monitor off shortly after
+                // "+5 minutes" postpones the black screen, to keep following the breathing guide
                 if !root.completed && !root.confirm-visible: HorizontalLayout {
                     alignment: center;
                     padding-top: 15px;
+                    spacing: 20px;
 
                     OutlineButton {
                         width: 240px;
                         height: 44px;
                         text: "Turn off screen";
                         clicked => { root.turn-off-screen(); }
+                    }
+
+                    if root.more-time-visible: OutlineButton {
+                        width: 240px;
+                        height: 44px;
+                        text: "+5 minutes";
+                        clicked => { root.more-time(); }
                     }
                 }
 

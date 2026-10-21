@@ -16,7 +16,8 @@
 
 - **Pick a duration** from 1 to 999 minutes, or use the quick presets (5, 15, 25, 45, 60 min), and see right away when it will end
 - **Full-screen lock** that stays on top until the timer ends, with a countdown, progress bar and unlock time
-- **The screen switches off gradually**: it dims as soon as the detox starts (on laptops the brightness drops to the minimum), turns black after a minute without input, and on desktop PCs the monitor is switched off a couple of minutes later. Move the mouse to see the timer again, or press **Turn off screen** to go dark right away. Everything comes back at the end.
+- **The screen switches off gradually**: it dims as soon as the detox starts (on laptops the brightness drops to the minimum), turns black after three minutes without input, and on desktop PCs the monitor is switched off a couple of minutes later. Press **+5 minutes** to keep it on for longer, move the mouse to see the timer again, or press **Turn off screen** to go dark right away. Everything comes back at the end.
+- **Breathing guide**: a circle above the timer grows and shrinks between two fixed rings at the pace of Buteyko's reduced breathing (2 s in, 3 s out, 4 s pause). It moves at a steady speed, so you can tell how long each breath will last
 - **No pauses**: the PC is kept from going to sleep until the detox is over
 - **All monitors covered**: secondary screens get their own overlay with the timer
 - **Shortcuts blocked** while locked: Windows key, Alt+Tab, Alt+F4, Alt+Esc, Ctrl+Esc and Ctrl+Shift+Esc. The taskbar is hidden on every monitor, and the Start menu is closed right away if it opens

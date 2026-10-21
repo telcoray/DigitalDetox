@@ -87,6 +87,16 @@ impl LockSession {
                 }
             }
         });
+        window.on_more_time({
+            let weak = window.as_weak();
+            let screen = screen.clone();
+            move || {
+                screen.borrow_mut().more_time();
+                if let Some(window) = weak.upgrade() {
+                    window.set_more_time_visible(false);
+                }
+            }
+        });
 
         // Same approach as the C# version: tick every 250 ms and recompute from the end time
         let timer = Timer::default();
@@ -106,8 +116,12 @@ impl LockSession {
             let covers = timer_covers.borrow();
             if update_display(&window, &covers, end, duration) {
                 complete_detox(&window, &covers, on_end.clone());
-            } else if let Some(shade) = screen.borrow_mut().tick(window.window()) {
-                apply_shade(&window, &covers, shade);
+            } else {
+                let mut screen = screen.borrow_mut();
+                if let Some(shade) = screen.tick(window.window()) {
+                    apply_shade(&window, &covers, shade);
+                }
+                window.set_more_time_visible(screen.offers_more_time());
             }
         });
 

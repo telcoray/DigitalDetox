@@ -1,9 +1,11 @@
 //! The gradual "switching off" of the screen during a detox:
 //!
-//! awake ──(1 min without input)──▶ black ──(2 more min)──▶ monitor off
+//! awake ──(3 min without input)──▶ black ──(2 more min)──▶ monitor off
 //!   ▲                                 │                        │
 //!   └───────── mouse or keyboard ─────┴────────────────────────┘
 //!
+//! The first 3 minutes leave time to follow the breathing guide. During the last minute before
+//! black a "+5 minutes" button appears, to keep following it for longer.
 //! After being woken up the timer stays visible for 10 seconds, then fades to black again.
 //! The "Turn off screen" button jumps straight to black, with the monitor off shortly after.
 //!
@@ -20,9 +22,13 @@ pub const DIM_LEVEL: f32 = 0.45;
 const BLACK_LEVEL: f32 = 1.0;
 
 /// Idle time before the screen fades to black, at the start of the detox
-const FIRST_BLACK_AFTER: Duration = Duration::from_secs(60);
+const FIRST_BLACK_AFTER: Duration = Duration::from_secs(180);
 /// Idle time before it fades to black again after being woken up
 const WAKE_BLACK_AFTER: Duration = Duration::from_secs(10);
+/// Idle time before black after the "+5 minutes" button
+const MORE_TIME_BLACK_AFTER: Duration = Duration::from_secs(300);
+/// The "+5 minutes" button is offered when black is at most this far away
+const MORE_TIME_OFFER: Duration = Duration::from_secs(60);
 /// How long the screen stays black before the monitor is switched off
 const IDLE_OFF_AFTER: Duration = Duration::from_secs(120);
 /// Same, after the "Turn off screen" button
@@ -49,6 +55,8 @@ pub struct ScreenControl {
     since: Instant,
     /// False with Modern Standby: the screen then stays black instead of being switched off
     can_power_off: bool,
+    /// Whether the "+5 minutes" button should be visible, updated on every tick
+    offer_more_time: bool,
 }
 
 /// What the windows should show after an update: shade level and how fast to get there
@@ -61,7 +69,12 @@ impl ScreenControl {
     pub fn new() -> Self {
         let can_power_off = !power::has_modern_standby();
         log!("[screen] monitor power-off {}", if can_power_off { "enabled" } else { "disabled (Modern Standby)" });
-        Self { state: State::Awake { black_after: FIRST_BLACK_AFTER }, since: Instant::now(), can_power_off }
+        Self {
+            state: State::Awake { black_after: FIRST_BLACK_AFTER },
+            since: Instant::now(),
+            can_power_off,
+            offer_more_time: false,
+        }
     }
 
     /// Called on every timer tick. Returns the new shade when it has to change.
@@ -71,6 +84,8 @@ impl ScreenControl {
         let in_state = self.since.elapsed();
         // Has there been any input since we entered the current state (after the grace period)?
         let woken = in_state > GRACE && idle < in_state;
+        self.offer_more_time =
+            matches!(self.state, State::Awake { black_after } if black_after.saturating_sub(idle) <= MORE_TIME_OFFER);
 
         match self.state {
             State::Awake { black_after } if idle >= black_after => Some(self.go_black(IDLE_OFF_AFTER)),
@@ -90,6 +105,18 @@ impl ScreenControl {
     /// The "Turn off screen" button
     pub fn turn_off_now(&mut self) -> Shade {
         self.go_black(BUTTON_OFF_AFTER)
+    }
+
+    /// The "+5 minutes" button: black only after 5 more minutes without input
+    pub fn more_time(&mut self) {
+        if matches!(self.state, State::Awake { .. }) {
+            self.enter(State::Awake { black_after: MORE_TIME_BLACK_AFTER });
+            self.offer_more_time = false;
+        }
+    }
+
+    pub fn offers_more_time(&self) -> bool {
+        self.offer_more_time
     }
 
     fn go_black(&mut self, off_after: Duration) -> Shade {
