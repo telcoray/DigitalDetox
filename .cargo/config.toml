@@ -1,0 +1,4 @@
+# Links the C runtime into the executable instead of using VCRUNTIME140.dll, which a freshly
+# installed Windows doesn't have: there the app failed to start with STATUS_DLL_NOT_FOUND.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
