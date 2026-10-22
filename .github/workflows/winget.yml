@@ -1,0 +1,52 @@
+# Publishing a release opens a pull request on microsoft/winget-pkgs that updates the
+# telcoray.DigitalDetox package to the new version, with the installer attached to the release.
+#
+# Uses wingetcreate, Microsoft's own tool. Needs the WINGET_TOKEN secret: a classic personal
+# access token of the telcoray account with the public_repo scope (the pull request comes from
+# the telcoray/winget-pkgs fork).
+#
+# Can also be run by hand (Actions → winget → Run workflow) for an existing release tag, e.g.
+# when the automatic run failed.
+
+name: winget
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to submit, e.g. v2.6.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: windows-latest
+    steps:
+      - name: Submit the new version to winget
+        shell: pwsh
+        env:
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          if (-not $env:WINGET_CREATE_GITHUB_TOKEN) {
+            Write-Error "The WINGET_TOKEN secret is missing"
+            exit 1
+          }
+          $version = $env:TAG.TrimStart('v')
+          $url = "https://github.com/telcoray/DigitalDetox/releases/download/$env:TAG/DigitalDetox-$env:TAG-setup-x64.exe"
+
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          # Takes the latest manifest in winget-pkgs, swaps in the new version and installer
+          # (computing its hash), and opens the pull request
+          ./wingetcreate.exe update telcoray.DigitalDetox `
+            --version $version `
+            --urls $url `
+            --release-notes-url "https://github.com/telcoray/DigitalDetox/releases/tag/$env:TAG" `
+            --release-date (Get-Date -Format yyyy-MM-dd) `
+            --prtitle "Update telcoray.DigitalDetox version $version" `
+            --submit
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
