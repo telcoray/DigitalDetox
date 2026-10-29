@@ -4,29 +4,26 @@
 
 import { Label, SymbolLabel, ScrollArea, Theme } from "common.slint";
 
-// Round outlined preset ("5", "15", …); lights up in the accent color when selected
+// Rounded preset button ("5", "15", …); lights up in the accent color when selected
 component PresetChip inherits Rectangle {
     in property <int> minutes;
     in property <bool> selected;
     callback clicked();
 
-    height: 34px;
-    min-width: 54px;
-    border-radius: self.height / 2;
+    height: 46px;
+    min-width: 56px;
+    horizontal-stretch: 1;
+    border-radius: 10px;
     border-width: 1px;
-    border-color: root.selected ? Theme.accent : touch.has-hover ? Theme.outline-hover : Theme.outline;
-    background: root.selected ? Theme.accent-soft : transparent;
+    border-color: root.selected ? Theme.accent : touch.has-hover ? Theme.subtle : Theme.outline-hover;
+    background: root.selected ? Theme.accent-soft : touch.has-hover ? #FFFFFF1A : #FFFFFF0D;
 
-    HorizontalLayout {
-        padding-left: 14px;
-        padding-right: 14px;
-
-        Label {
-            text: "\{root.minutes}";
-            font-size: 15px;
-            color: root.selected ? Theme.text : Theme.subtle;
-            vertical-alignment: center;
-        }
+    Label {
+        text: "\{root.minutes}";
+        font-size: 18px;
+        font-weight: 600;
+        color: root.selected ? Theme.text : Theme.title;
+        vertical-alignment: center;
     }
 
     touch := TouchArea {
@@ -40,13 +37,13 @@ component PrimaryButton inherits Rectangle {
     in property <string> text;
     callback clicked();
 
-    height: 50px;
-    border-radius: 8px;
+    height: 52px;
+    border-radius: 10px;
     background: touch.pressed ? Theme.accent-pressed : touch.has-hover ? Theme.accent-hover : Theme.accent;
 
     Label {
         text: root.text;
-        font-size: 17px;
+        font-size: 18px;
         font-weight: 600;
         color: Theme.text;
         vertical-alignment: center;
@@ -62,8 +59,8 @@ component PrimaryButton inherits Rectangle {
 component Section inherits VerticalLayout {
     in property <string> title;
 
-    padding-left: 32px;
-    padding-right: 32px;
+    padding-left: 28px;
+    padding-right: 28px;
     padding-bottom: 32px;
     spacing: 10px;
 
@@ -101,10 +98,10 @@ export component MainWindow inherits Window {
 
     title: "Digital Detox";
     icon: @image-url("../assets/logo.svg");
-    // Fixed size. 432x560 gives whole pixels at 100/125/150/175% display scaling:
+    // Fixed size. 400x480 gives whole pixels at 100/125/150/175% display scaling:
     // with fractional sizes a 1px unpainted (white) line appears on the right and bottom edges.
-    width: 432px;
-    height: 560px;
+    width: 400px;
+    height: 480px;
     background: Theme.background;
 
     // Workaround for a Slint software-renderer bug on Windows: after the window is restored from
@@ -123,10 +120,10 @@ export component MainWindow inherits Window {
         // First screen, exactly as tall as the window: everything needed to start a detox
         VerticalLayout {
             height: scroll.height;
-            padding-left: 32px;
-            padding-right: 32px;
-            padding-top: 36px;
-            padding-bottom: 32px;
+            padding-left: 28px;
+            padding-right: 28px;
+            padding-top: 28px;
+            padding-bottom: 28px;
 
             SymbolLabel {
                 symbol: "🌿";
@@ -155,7 +152,7 @@ export component MainWindow inherits Window {
                     text <=> root.minutes-text;
                     input-type: number;
                     font-family: Theme.font;
-                    font-size: 120px;
+                    font-size: 84px;
                     font-weight: 100;
                     color: Theme.text;
                     selection-background-color: Theme.accent-soft;
@@ -167,13 +164,13 @@ export component MainWindow inherits Window {
 
                 Label {
                     text: "minutes";
-                    font-size: 18px;
+                    font-size: 16px;
                     color: Theme.muted;
                 }
             }
 
+            // Equal-width presets spanning the same width as the Start button
             HorizontalLayout {
-                alignment: center;
                 spacing: 8px;
 
                 for minutes in [5, 15, 25, 45, 60]: PresetChip {
@@ -188,8 +185,8 @@ export component MainWindow inherits Window {
 
             // When the detox would end, or what's wrong with the value typed
             VerticalLayout {
-                padding-top: 22px;
-                padding-bottom: 14px;
+                padding-top: 16px;
+                padding-bottom: 12px;
 
                 Label {
                     min-height: 20px;
