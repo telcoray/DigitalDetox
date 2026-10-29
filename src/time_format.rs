@@ -16,6 +16,14 @@ pub fn short_time(time: chrono::DateTime<chrono::Local>) -> String {
     format(time, TIME_NOSECONDS, "%H:%M")
 }
 
+/// Time left on a timer, e.g. "24:59" or "1:05:00". Rounded up, so it only shows 00:00 when the
+/// time is actually up.
+pub fn countdown(remaining: std::time::Duration) -> String {
+    let secs = remaining.as_secs_f64().ceil() as u64;
+    let (h, m, s) = (secs / 3600, (secs % 3600) / 60, secs % 60);
+    if h > 0 { format!("{h}:{m:02}:{s:02}") } else { format!("{m:02}:{s:02}") }
+}
+
 fn format(time: chrono::DateTime<chrono::Local>, flags: TIME_FORMAT_FLAGS, fallback: &str) -> String {
     // Only the time fields matter: GetTimeFormatEx ignores the date
     let system_time = SYSTEMTIME {
@@ -50,6 +58,14 @@ mod tests {
         println!("long: {text}");
         // 24-hour ("19:19:33") or 12-hour ("7:19:33 PM") depending on the PC's settings
         assert!(text.contains("19:33"), "unexpected format: {text}");
+    }
+
+    #[test]
+    fn countdown_rounds_up() {
+        use std::time::Duration;
+        assert_eq!(countdown(Duration::from_millis(1500)), "00:02");
+        assert_eq!(countdown(Duration::from_secs(25 * 60)), "25:00");
+        assert_eq!(countdown(Duration::from_secs(3900)), "1:05:00");
     }
 
     #[test]

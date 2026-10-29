@@ -30,6 +30,13 @@ const MESSAGES: [&str; 10] = [
     "Find calm in the stillness.",
 ];
 
+/// A detox chosen by the user, or a break of the Pomodoro mode: same lock screen, other words
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SessionKind {
+    Detox,
+    Break,
+}
+
 /// Ctrl+Shift+X must be pressed this many times, each within `EMERGENCY_WINDOW` of the previous one
 const EMERGENCY_PRESSES: u32 = 3;
 const EMERGENCY_WINDOW: Duration = Duration::from_secs(2);
@@ -51,8 +58,8 @@ pub struct LockSession {
 
 impl LockSession {
     /// Shows the lock screen for `duration`. `on_end` is called when the session should be
-    /// closed: 3 seconds after the timer runs out, or after a confirmed emergency exit.
-    pub fn start(duration: Duration, on_end: impl Fn() + 'static) -> Result<Self, slint::PlatformError> {
+    /// closed: 5 seconds after the timer runs out, or after a confirmed emergency exit.
+    pub fn start(duration: Duration, kind: SessionKind, on_end: impl Fn() + 'static) -> Result<Self, slint::PlatformError> {
         let on_end: Rc<dyn Fn()> = Rc::new(on_end);
         // Instant is a monotonic clock: unaffected by clock changes or daylight saving time
         let end = Instant::now() + duration;
@@ -60,6 +67,12 @@ impl LockSession {
         let window = LockWindow::new()?;
         let covers: Rc<RefCell<Vec<CoverWindow>>> = Rc::default();
 
+        if kind == SessionKind::Break {
+            window.set_heading("Time for a Break".into());
+            window.set_in_progress_text("Pomodoro Break in Progress".into());
+            window.set_complete_text("Break Over!".into());
+            window.set_session_name("break".into());
+        }
         window.set_motivation(random_message().into());
         let unlock_at = chrono::Local::now() + duration;
         window.set_unlock_text(format!("Unlocks at: {}", crate::time_format::long_time(unlock_at)).into());
@@ -181,14 +194,7 @@ impl Drop for LockSession {
 fn update_display(window: &LockWindow, covers: &[CoverWindow], end: Instant, total: Duration) -> bool {
     let remaining = end.saturating_duration_since(Instant::now());
 
-    // Round up so the display only reaches 00:00 when the detox actually ends
-    let secs = remaining.as_secs_f64().ceil() as u64;
-    let (h, m, s) = (secs / 3600, (secs % 3600) / 60, secs % 60);
-    let text = if h > 0 {
-        format!("{h}:{m:02}:{s:02}")
-    } else {
-        format!("{m:02}:{s:02}")
-    };
+    let text = crate::time_format::countdown(remaining);
     // The UI lays out each character in its own fixed-width cell, so pass them one by one
     let chars: Vec<SharedString> = text.chars().map(|c| c.to_string().into()).collect();
     let chars = ModelRc::new(VecModel::from(chars));

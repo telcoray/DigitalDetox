@@ -1,0 +1,55 @@
+// Small card in the bottom-right corner, a minute before a Pomodoro break locks the screen.
+// Clicking it closes it.
+
+import { Label, Theme } from "common.slint";
+
+export component ReminderWindow inherits Window {
+    in property <string> message;
+    callback dismissed();
+
+    title: "Digital Detox";
+    icon: @image-url("../assets/logo.svg");
+    // Whole pixels at 100/125/150/175% display scaling, like the main window
+    width: 340px;
+    height: 88px;
+    no-frame: true;
+    always-on-top: true;
+    background: Theme.tomato;
+
+    // 1px tomato-red border around the dark card, as in the Pomodoro tab
+    Rectangle {
+        x: 1px;
+        y: 1px;
+        width: parent.width - 2px;
+        height: parent.height - 2px;
+        background: Theme.background;
+
+        VerticalLayout {
+            padding-left: 18px;
+            padding-right: 18px;
+            alignment: center;
+            spacing: 4px;
+
+            Label {
+                text: "Break in 1 minute";
+                font-size: 16px;
+                font-weight: 600;
+                color: Theme.title;
+                horizontal-alignment: left;
+            }
+
+            Label {
+                text: root.message;
+                font-size: 13px;
+                color: Theme.muted;
+                horizontal-alignment: left;
+                wrap: word-wrap;
+            }
+        }
+    }
+
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.dismissed(); }
+    }
+}

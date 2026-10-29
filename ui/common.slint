@@ -20,6 +20,12 @@ export global Theme {
     out property <color> accent-pressed: #1F618D;
     out property <color> accent-soft: #3498DB33;  // selected chips, text selection
 
+    // Tomato red, only for the Pomodoro mode
+    out property <color> tomato: #ED1D25;
+    out property <color> tomato-hover: #D01920;
+    out property <color> tomato-pressed: #B0151B;
+    out property <color> tomato-soft: #ED1D2533;
+
     out property <color> success: #90EE90;
     out property <color> warning: #FFA500;
     out property <color> error: #E74C3C;
@@ -78,7 +84,7 @@ export component ScrollArea inherits Rectangle {
         // Children (buttons, text box) ignore wheel events, so they all end up here
         scroll-event(event) => {
             if (event.delta-y > 0) {
-                root.offset = max(0px, root.offset - root.step);
+                root.offset = max(0px, min(root.offset, root.max-offset) - root.step);
             } else if (event.delta-y < 0) {
                 root.offset = min(root.max-offset, root.offset + root.step);
             }
@@ -86,7 +92,8 @@ export component ScrollArea inherits Rectangle {
         }
 
         content := VerticalLayout {
-            y: -root.offset;
+            // Clamped: switching tab can make the content shorter than the current offset
+            y: -min(root.offset, root.max-offset);
             width: root.width;
             height: self.preferred-height;
             @children

@@ -179,6 +179,12 @@ export component LockWindow inherits Window {
     in-out property <bool> emergency-visible: false;
     property <bool> confirm-visible: false;
 
+    // The words that change between a detox and a Pomodoro break
+    in property <string> heading: "Time to Disconnect";
+    in property <string> in-progress-text: "Digital Detox in Progress";
+    in property <string> complete-text: "Detox Complete!";
+    in property <string> session-name: "detox";
+
     // How dark the screen is (see Shade); driven by Rust's idle tracking
     in property <float> shade-level;
     in property <duration> shade-fade;
@@ -227,7 +233,7 @@ export component LockWindow inherits Window {
 
                 SymbolLabel {
                     symbol: "🌿";
-                    text: "Time to Disconnect";
+                    text: root.heading;
                     font-size: 28px;
                     font-weight: 700;
                     color: Theme.title;
@@ -263,13 +269,13 @@ export component LockWindow inherits Window {
                     padding-top: 15px;
                     if root.completed: SymbolLabel {
                         symbol: "✨";
-                        text: "Detox Complete!";
+                        text: root.complete-text;
                         font-size: 24px;
                         color: Theme.success;
                     }
 
                     if !root.completed: Label {
-                        text: root.status-message != "" ? root.status-message : "Digital Detox in Progress";
+                        text: root.status-message != "" ? root.status-message : root.in-progress-text;
                         font-size: 24px;
                         color: root.status-message != "" ? Theme.warning : Theme.muted;
                     }
@@ -364,7 +370,7 @@ export component LockWindow inherits Window {
                     spacing: 15px;
 
                     Label {
-                        text: "Are you sure you want to end your detox early?\nYour progress will be lost.";
+                        text: "Are you sure you want to end your \{root.session-name} early?\nYour progress will be lost.";
                         font-size: 16px;
                         color: Theme.title;
                     }
@@ -375,7 +381,7 @@ export component LockWindow inherits Window {
 
                         OutlineButton {
                             width: 220px;
-                            text: "Yes, end detox";
+                            text: "Yes, end \{root.session-name}";
                             clicked => { root.exit-requested(); }
                         }
 
