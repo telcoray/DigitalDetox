@@ -24,6 +24,10 @@ component PresetChip inherits Rectangle {
         font-weight: 600;
         color: root.selected ? Theme.text : Theme.title;
         vertical-alignment: center;
+        // Segoe UI leaves more room below the letters than above: without this nudge
+        // the text looks about 1px too low when centered
+        y: -1px;
+        height: parent.height;
     }
 
     touch := TouchArea {
@@ -50,6 +54,9 @@ component PrimaryButton inherits Rectangle {
         font-weight: 600;
         color: Theme.text;
         vertical-alignment: center;
+        // Same nudge as in PresetChip
+        y: -1px;
+        height: parent.height;
     }
 
     touch := TouchArea {
@@ -105,6 +112,9 @@ component SecondaryButton inherits Rectangle {
         font-weight: 600;
         color: Theme.text;
         vertical-alignment: center;
+        // Same nudge as in PresetChip
+        y: -1px;
+        height: parent.height;
     }
 
     touch := TouchArea {
