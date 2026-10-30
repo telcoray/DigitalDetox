@@ -16,6 +16,7 @@
 
 - **Pick a duration** from 1 to 999 minutes, or use the quick presets (5, 15, 25, 45, 60 min), and see right away when it will end
 - **Pomodoro mode**: 25 minutes of focus with the PC free, then the screen locks for a 5-minute break (15 minutes after every 4th round). A small reminder appears in the corner a minute before each break, and the tray icon shows how long is left
+- **Sync your devices**: pair your PC and laptop once with a 6-digit code, and a detox or a Pomodoro started on one starts on the other too, with the breaks locking both at the same moment. It works on your local network only, with no account or server
 - **Full-screen lock** that stays on top until the timer ends, with a countdown, progress bar and unlock time
 - **The screen switches off gradually**: it dims as soon as the detox starts (on laptops the brightness drops to the minimum), turns black after three minutes without input, and on desktop PCs the monitor is switched off a couple of minutes later. Press **+5 minutes** to keep it on for longer, move the mouse to see the timer again, or press **Turn off screen** to go dark right away. Everything comes back at the end.
 - **Breathing guide**: a circle above the timer grows and shrinks between two fixed rings at the pace of Buteyko's reduced breathing (2 s in, 3 s out, 4 s pause). It moves at a steady speed, so you can tell how long each breath will last
@@ -25,7 +26,7 @@
 - **A calming message** picked at random for each session
 - **Unlocks automatically** when the time is up
 - **Emergency exit** if you really need your computer back
-- **Lives in the system tray**: closing or minimizing the window keeps the app in the system tray. Left-click the tray icon to open it, right-click the tray icon to start a detox or a Pomodoro right away, or quit
+- **Lives in the system tray**: closing or minimizing the window keeps the app in the system tray. Left-click the tray icon to open it, right-click the tray icon to start a detox or a Pomodoro right away, turn syncing on or off, or quit
 - **Start with Windows** (optional): tick it in the tray menu and the app starts at sign-in, quietly in the system tray
 - **Lightweight**: a single ~12 MB executable that uses about 5 MB of memory, no administrator rights needed
 
@@ -69,6 +70,8 @@ src/
   session.rs          one detox session: lock screen, timer, monitors, emergency exit
   pomodoro.rs         the Pomodoro cycle of work rounds and breaks
   reminder.rs         the "Break in 1 minute" card
+  sharing.rs          what to do when a paired device starts or stops something
+  sync/               pairing and talking to paired devices on the local network
   keyboard_hook.rs    blocking of system shortcuts
   single_instance.rs  only one copy of the app at a time
 assets/      logo and icon
@@ -83,6 +86,20 @@ assets/      logo and icon
 3. Step away from the screen; it unlocks by itself when the timer reaches zero
 
 For the Pomodoro mode, open the **Pomodoro** tab and click **Start Pomodoro**. It keeps going round after round until you click **Stop Pomodoro**, here or in the tray menu.
+
+<br clear="right" />
+
+### Sync with your other devices
+
+<img src="screenshots/sync.png" alt="Sync tab" width="320" align="right" />
+
+1. Install Digital Detox on both devices, connected to the same network
+2. On one, open the **Sync** tab and click **Pair a device**: it shows a 6-digit code
+3. On the other, click **Enter a code**, type it and click **Pair**
+
+From then on, a detox or a Pomodoro started on either device starts on both, and **Stop Pomodoro** stops both. A device that was asleep or switched off catches up when it's back. Turn **Sync with paired devices** off on a device to leave it out for a while.
+
+The code itself never travels over the network, and everything the devices send each other is signed with a key only they have. The first time, Windows Firewall asks to let Digital Detox use the network: allow it on private networks. The emergency exit unlocks only the device it's used on.
 
 ### Emergency exit
 

@@ -9,12 +9,17 @@ repository = "https://github.com/telcoray/DigitalDetox"
 
 [dependencies]
 chrono = "0.4.45"
+getrandom = "0.2.17"
+hmac = "0.12.1"
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.10.9"
 # Default features turned off so the text renderer can be chosen below. No "accessibility":
 # its AccessKit layer crashed the app when the monitors woke up during a lock screen.
 slint = { version = "1.18.1", default-features = false, features = ["std", "backend-winit", "compat-1-2", "unstable-winit-030"] }
+spake2 = "0.4.0"
 tray-icon = "0.26.1"
-windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_Security", "Win32_Globalization", "Win32_System_Power", "Win32_System_SystemInformation", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_Accessibility", "Win32_System_Registry", "Win32_UI_HiDpi"] }
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_Security", "Win32_Globalization", "Win32_System_Power", "Win32_System_SystemInformation", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_Accessibility", "Win32_System_Registry", "Win32_UI_HiDpi", "Win32_Security_Cryptography", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock"] }
 wmi = "0.18.4"
 
 [build-dependencies]

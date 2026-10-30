@@ -16,6 +16,13 @@ pub fn short_time(time: chrono::DateTime<chrono::Local>) -> String {
     format(time, TIME_NOSECONDS, "%H:%M")
 }
 
+/// The current time as a Unix time in milliseconds, the format shared with paired devices
+pub fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
+}
+
 /// Time left on a timer, e.g. "24:59" or "1:05:00". Rounded up, so it only shows 00:00 when the
 /// time is actually up.
 pub fn countdown(remaining: std::time::Duration) -> String {

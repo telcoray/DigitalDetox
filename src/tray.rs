@@ -1,7 +1,8 @@
 //! Icon in the notification area (system tray), next to the clock.
 //!
 //! Left click opens the main window; right click shows a menu to open it, start a detox right
-//! away, start or stop the Pomodoro mode, turn "Start with Windows" on or off, or quit. While a
+//! away, start or stop the Pomodoro mode, turn syncing with paired devices and "Start with
+//! Windows" on or off, or quit. While a
 //! detox (or a Pomodoro break) is running the menu is disabled, so it can't be used to leave it.
 
 use std::cell::{Cell, RefCell};
@@ -20,10 +21,13 @@ pub struct Tray {
     open: MenuItem,
     start: Submenu,
     pomodoro: MenuItem,
+    sync: CheckMenuItem,
     autostart: CheckMenuItem,
     quit: MenuItem,
     detox_running: Cell<bool>,
     pomodoro_running: Cell<bool>,
+    // Whether this device has paired devices to sync with
+    paired: Cell<bool>,
     tooltip: RefCell<String>,
 }
 
@@ -36,9 +40,11 @@ impl Tray {
             start.append(&MenuItem::with_id(format!("start:{minutes}"), format!("{minutes} minutes"), true, None))?;
         }
         let pomodoro = MenuItem::with_id("pomodoro", "Start Pomodoro", true, None);
+        let sync = CheckMenuItem::with_id("sync", "Sync with paired devices", false, false, None);
         let autostart = CheckMenuItem::with_id("autostart", "Start with Windows", true, autostart, None);
         let quit = MenuItem::with_id("quit", "Quit", true, None);
-        let menu = Menu::with_items(&[&open, &start, &pomodoro, &PredefinedMenuItem::separator(), &autostart, &quit])?;
+        let menu =
+            Menu::with_items(&[&open, &start, &pomodoro, &PredefinedMenuItem::separator(), &sync, &autostart, &quit])?;
 
         let icon = TrayIconBuilder::new()
             // The app icon embedded in the .exe by build.rs (resource ID 1)
@@ -59,6 +65,7 @@ impl Tray {
             let action = match event.id.as_ref() {
                 "open" => Action::Open,
                 "pomodoro" => Action::TogglePomodoro,
+                "sync" => Action::ToggleSync,
                 "autostart" => Action::ToggleAutostart,
                 "quit" => Action::Quit,
                 id => match id.strip_prefix("start:").and_then(|m| m.parse().ok()) {
@@ -74,10 +81,12 @@ impl Tray {
             open,
             start,
             pomodoro,
+            sync,
             autostart,
             quit,
             detox_running: Cell::new(false),
             pomodoro_running: Cell::new(false),
+            paired: Cell::new(false),
             tooltip: RefCell::new("Digital Detox".into()),
         })
     }
@@ -102,8 +111,17 @@ impl Tray {
         self.open.set_enabled(!detox);
         self.start.set_enabled(!detox && !self.pomodoro_running.get());
         self.pomodoro.set_enabled(!detox);
+        self.sync.set_enabled(!detox && self.paired.get());
         self.autostart.set_enabled(!detox);
         self.quit.set_enabled(!detox);
+    }
+
+    /// The "Sync with paired devices" check mark; the item is greyed out until a device is paired
+    pub fn set_sync(&self, paired: bool, enabled: bool) {
+        self.sync.set_checked(paired && enabled);
+        if self.paired.replace(paired) != paired {
+            self.update_items();
+        }
     }
 
     /// Text shown when hovering the icon. Only passed on to Windows when it changes.

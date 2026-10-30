@@ -1,6 +1,6 @@
 // Main window where the duration is chosen. Same style as the lock screen: one dark background,
 // a large thin number, quiet gray text and the blue accent.
-// Two tabs, Detox and Pomodoro, each with an explanation section further down (scroll to see it).
+// Three tabs, Detox, Pomodoro and Sync, each with an explanation section further down (scroll to see it).
 
 import { Label, ScrollArea, Theme } from "common.slint";
 
@@ -190,6 +190,32 @@ component RoundDots inherits HorizontalLayout {
     }
 }
 
+// On/off switch
+component Switch inherits Rectangle {
+    in property <bool> checked;
+
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background: root.checked ? Theme.accent : Theme.outline;
+
+    Rectangle {
+        width: 18px;
+        height: 18px;
+        y: 3px;
+        x: root.checked ? parent.width - self.width - 3px : 3px;
+        border-radius: 9px;
+        background: Theme.text;
+        animate x { duration: 120ms; }
+    }
+}
+
+// A paired device in the Sync tab
+export struct SyncDevice {
+    name: string,
+    online: bool,
+}
+
 export component MainWindow inherits Window {
     // 0 = Detox, 1 = Pomodoro
     in-out property <int> tab: 0;
@@ -205,6 +231,17 @@ export component MainWindow inherits Window {
     in property <string> pomodoro-caption;
     in property <string> pomodoro-info;
 
+    // Syncing with paired devices, kept up to date by Rust (sharing.rs)
+    in property <bool> sync-paired;        // at least one paired device
+    in property <bool> sync-has-group;     // paired, or waiting for a first device
+    in property <bool> sync-enabled;
+    in property <[SyncDevice]> sync-devices;
+    // 0 = device list, 1 = showing a code, 2 = typing a code, 3 = looking for the other device
+    in property <int> pairing-mode;
+    in property <string> pairing-code;     // "482 913"
+    in property <string> pairing-status;   // "Paired with LAPTOP", or what went wrong
+    in-out property <string> code-text;
+
     // Flipped by Rust after the window comes back from being minimized, see `backdrop` below
     in property <bool> repaint-flip;
 
@@ -213,6 +250,12 @@ export component MainWindow inherits Window {
     callback start-clicked();
     // Starts the Pomodoro, or stops it when it's running
     callback pomodoro-clicked();
+    callback sync-toggled();
+    callback pair-clicked();
+    callback enter-code-clicked();
+    callback join-code(string);
+    callback cancel-pairing();
+    callback unpair-clicked();
 
     title: "Digital Detox";
     icon: @image-url("../assets/logo.svg");
@@ -244,7 +287,7 @@ export component MainWindow inherits Window {
             padding-bottom: 28px;
 
             TabBar {
-                tabs: ["Detox", "Pomodoro"];
+                tabs: ["Detox", "Pomodoro", "Sync"];
                 current <=> root.tab;
                 accent: root.tab == 1 ? Theme.tomato : Theme.accent;
                 accent-soft: root.tab == 1 ? Theme.tomato-soft : Theme.accent-soft;
@@ -390,6 +433,188 @@ export component MainWindow inherits Window {
                     clicked => { root.pomodoro-clicked(); }
                 }
             }
+
+            if root.tab == 2: VerticalLayout {
+                vertical-stretch: 1;
+
+                VerticalLayout {
+                    padding-top: 20px;
+
+                    Label {
+                        text: "Lock your devices together";
+                        font-size: 16px;
+                        color: Theme.muted;
+                    }
+                }
+
+                // The paired devices, with a dot when they're on the network now
+                if root.pairing-mode == 0: VerticalLayout {
+                    vertical-stretch: 1;
+                    alignment: center;
+                    spacing: 12px;
+
+                    if !root.sync-paired: Label {
+                        text: "No paired devices yet";
+                        font-size: 16px;
+                        color: Theme.faint;
+                    }
+
+                    for device in root.sync-devices: HorizontalLayout {
+                        alignment: center;
+                        spacing: 10px;
+
+                        VerticalLayout {
+                            alignment: center;
+
+                            Rectangle {
+                                width: 10px;
+                                height: 10px;
+                                border-radius: 5px;
+                                background: device.online ? Theme.success : Theme.outline-hover;
+                            }
+                        }
+
+                        Label {
+                            text: device.name;
+                            font-size: 18px;
+                            color: Theme.title;
+                            vertical-alignment: center;
+                        }
+
+                        Label {
+                            text: device.online ? "online" : "offline";
+                            font-size: 14px;
+                            color: Theme.faint;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                // This device shows a code for the other one
+                if root.pairing-mode == 1: VerticalLayout {
+                    vertical-stretch: 1;
+                    alignment: center;
+                    spacing: 6px;
+
+                    Label {
+                        text: root.pairing-code;
+                        font-size: 64px;
+                        font-weight: 100;
+                        color: Theme.text;
+                    }
+
+                    Label {
+                        text: "Enter this code on the other device";
+                        font-size: 15px;
+                        color: Theme.muted;
+                    }
+                }
+
+                // The code shown on the other device is typed here
+                if root.pairing-mode == 2 || root.pairing-mode == 3: VerticalLayout {
+                    vertical-stretch: 1;
+                    alignment: center;
+                    spacing: 6px;
+
+                    TextInput {
+                        text <=> root.code-text;
+                        input-type: number;
+                        read-only: root.pairing-mode == 3;
+                        font-family: Theme.font;
+                        font-size: 64px;
+                        font-weight: 100;
+                        color: Theme.text;
+                        selection-background-color: Theme.accent-soft;
+                        horizontal-alignment: center;
+                        accepted => { root.join-code(self.text); }
+                        init => { self.focus(); }
+                    }
+
+                    Label {
+                        text: "Type the code shown on the other device";
+                        font-size: 15px;
+                        color: Theme.muted;
+                    }
+                }
+
+                VerticalLayout {
+                    padding-top: 12px;
+                    padding-bottom: 12px;
+
+                    Label {
+                        min-height: 20px;
+                        text: root.pairing-status;
+                        font-size: 14px;
+                        color: Theme.faint;
+                        wrap: word-wrap;
+                    }
+                }
+
+                if root.pairing-mode == 0 && root.sync-paired: Rectangle {
+                    height: 44px;
+
+                    HorizontalLayout {
+                        spacing: 12px;
+
+                        Label {
+                            text: "Sync with paired devices";
+                            font-size: 16px;
+                            color: Theme.title;
+                            horizontal-alignment: left;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+
+                            Switch { checked: root.sync-enabled; }
+                        }
+                    }
+
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.sync-toggled(); }
+                    }
+                }
+
+                if root.pairing-mode == 0: HorizontalLayout {
+                    spacing: 8px;
+
+                    PrimaryButton {
+                        horizontal-stretch: 1;
+                        text: "Pair a device";
+                        clicked => { root.pair-clicked(); }
+                    }
+
+                    SecondaryButton {
+                        horizontal-stretch: 1;
+                        text: "Enter a code";
+                        clicked => { root.enter-code-clicked(); }
+                    }
+                }
+
+                if root.pairing-mode == 2: HorizontalLayout {
+                    spacing: 8px;
+
+                    PrimaryButton {
+                        horizontal-stretch: 1;
+                        text: "Pair";
+                        clicked => { root.join-code(root.code-text); }
+                    }
+
+                    SecondaryButton {
+                        horizontal-stretch: 1;
+                        text: "Cancel";
+                        clicked => { root.cancel-pairing(); }
+                    }
+                }
+
+                if root.pairing-mode == 1 || root.pairing-mode == 3: SecondaryButton {
+                    text: "Cancel";
+                    clicked => { root.cancel-pairing(); }
+                }
+            }
         }
 
         if root.tab == 0: Section {
@@ -405,6 +630,37 @@ export component MainWindow inherits Window {
                 font-size: 15px;
                 color: Theme.muted;
                 horizontal-alignment: left;
+            }
+        }
+
+        if root.tab == 2: Section {
+            title: "How does it work?";
+
+            for line in [
+                "• Pair once: show a code here, type it",
+                "  on the other device",
+                "• A detox or Pomodoro started on one",
+                "  device starts on all of them",
+                "• Same network only",
+                "• The emergency exit unlocks only the",
+                "  device it's used on",
+            ]: Label {
+                text: line;
+                font-size: 15px;
+                color: Theme.muted;
+                horizontal-alignment: left;
+            }
+
+            if root.sync-has-group: Label {
+                text: "Unpair this device";
+                font-size: 14px;
+                color: unpair-touch.has-hover ? Theme.title : Theme.faint;
+                horizontal-alignment: left;
+
+                unpair-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.unpair-clicked(); }
+                }
             }
         }
 

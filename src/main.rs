@@ -3,7 +3,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
 use slint::{CloseRequestResponse, ComponentHandle, SharedString, Timer, TimerMode};
@@ -24,12 +24,13 @@ mod power;
 mod reminder;
 mod screen;
 mod session;
+mod sharing;
 mod single_instance;
+mod sync;
 mod taskbar;
 mod time_format;
 mod tray;
 
-use pomodoro::Pomodoro;
 use reminder::Reminder;
 use session::{LockSession, SessionKind};
 
@@ -41,13 +42,16 @@ const MAX_DIGITS: usize = 3;
 
 /// Requests coming from outside the main window: the tray icon and its menu, or a second copy
 /// of the app being started
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Action {
     Open,
     Start(u64),
     TogglePomodoro,
+    ToggleSync,
     ToggleAutostart,
     Quit,
+    /// From the network thread: something a paired device said
+    Sync(sync::Event),
 }
 
 /// Everything the app keeps while it runs, mostly hidden in the notification area
@@ -57,12 +61,14 @@ struct App {
     session: RefCell<Option<LockSession>>,
     // The Pomodoro mode, while it's on
     pomodoro: RefCell<Option<PomodoroRun>>,
+    // Syncing with paired devices
+    sharing: sharing::Sharing,
     tray: Option<tray::Tray>,
     _preview_timer: Timer,
 }
 
 struct PomodoroRun {
-    cycle: Pomodoro,
+    tracker: pomodoro::Tracker,
     // Ticks the cycle every second
     _timer: Timer,
     // The "Break in 1 minute" card, while it's shown
@@ -124,6 +130,7 @@ fn main() -> Result<(), slint::PlatformError> {
         with_app(|app| {
             update_unlock_preview(&app.window);
             update_pomodoro_view(app);
+            sharing::update_view(app);
         })
     });
 
@@ -131,11 +138,13 @@ fn main() -> Result<(), slint::PlatformError> {
         window,
         session: RefCell::default(),
         pomodoro: RefCell::default(),
+        sharing: sharing::Sharing::load(),
         tray,
         _preview_timer: preview_timer,
     });
     APP.with(|slot| *slot.borrow_mut() = Some(app.clone()));
     update_pomodoro_view(&app);
+    sharing::setup(&app);
     instance.listen_for_show_requests(|| dispatch(Action::Open));
 
     // Without a tray icon there would be no way to reach a hidden window, so then it opens anyway
@@ -154,6 +163,10 @@ fn main() -> Result<(), slint::PlatformError> {
 }
 
 fn handle(app: &Rc<App>, action: Action) {
+    // Paired devices are heard even during a detox (sharing.rs holds back what must wait)
+    if let Action::Sync(event) = action {
+        return sharing::on_event(app, event);
+    }
     log!("[app] action {action:?} (window visible: {})", app.window.window().is_visible());
     // Nothing from outside may interfere with a running detox
     if app.session.borrow().is_some() {
@@ -165,10 +178,12 @@ fn handle(app: &Rc<App>, action: Action) {
         Action::Start(_) if app.pomodoro.borrow().is_some() => {}
         Action::Start(minutes) => start_detox(app, Duration::from_secs(minutes * 60)),
         Action::TogglePomodoro => toggle_pomodoro(app),
+        Action::ToggleSync => sharing::toggle(app),
         Action::ToggleAutostart => toggle_autostart(app),
         Action::Quit => {
             let _ = slint::quit_event_loop();
         }
+        Action::Sync(_) => unreachable!("handled above"),
     }
 }
 
@@ -284,7 +299,10 @@ fn update_unlock_preview(window: &MainWindow) {
     window.set_unlock_text(text.into());
 }
 
+/// A detox started on this device: paired devices start it too
 fn start_detox(app: &Rc<App>, duration: Duration) {
+    let ends_at = time_format::now_ms() + duration.as_millis() as u64;
+    sharing::publish(app, sync::Shared::Detox { ends_at });
     start_lock(app, duration, SessionKind::Detox);
 }
 
@@ -305,12 +323,12 @@ fn start_lock(app: &Rc<App>, duration: Duration, kind: SessionKind) {
             if let Some(tray) = &app.tray {
                 tray.set_detox_running(false);
             }
-            if kind == SessionKind::Break {
-                break_over(&app);
-            }
             if reopen {
                 show_window(&app);
             }
+            // A paired device may have started something meanwhile
+            sharing::after_lock(&app);
+            update_pomodoro_view(&app);
         });
     };
 
@@ -325,42 +343,59 @@ fn start_lock(app: &Rc<App>, duration: Duration, kind: SessionKind) {
         Err(e) => {
             show_window(app);
             app.window.set_error_text(format!("Couldn't start the lock screen: {e}").into());
-            if kind == SessionKind::Break {
-                break_over(app);
-            }
         }
     }
 }
 
-/// Starts the Pomodoro mode, or stops it if it's on
+/// Starts the Pomodoro mode, or stops it if it's on. Paired devices do the same.
 fn toggle_pomodoro(app: &Rc<App>) {
-    let stopped = app.pomodoro.borrow_mut().take();
+    if app.pomodoro.borrow().is_some() {
+        stop_pomodoro(app);
+        sharing::publish(app, sync::Shared::Idle);
+    } else {
+        let start = time_format::now_ms();
+        run_pomodoro(app, start);
+        sharing::publish(app, sync::Shared::Pomodoro { start });
+    }
+}
+
+/// Runs the Pomodoro that started at `start_ms` (now, or earlier on a paired device)
+fn run_pomodoro(app: &Rc<App>, start_ms: u64) {
+    log!("[pomodoro] running, started at {start_ms}");
+    let timer = Timer::default();
+    timer.start(TimerMode::Repeated, Duration::from_secs(1), || with_app(pomodoro_tick));
+    let previous = app.pomodoro.replace(Some(PomodoroRun { tracker: pomodoro::Tracker::new(start_ms), _timer: timer, reminder: None }));
+    // Dropped outside the borrow: this removes its reminder card if it's shown
+    drop(previous);
+    app.window.set_error_text(SharedString::new());
+    app.window.set_tab(1);
+    if let Some(tray) = &app.tray {
+        tray.set_pomodoro_running(true);
+    }
+    pomodoro_tick(app);
+}
+
+fn stop_pomodoro(app: &Rc<App>) {
+    let stopped = app.pomodoro.take();
     if stopped.is_some() {
         log!("[pomodoro] stopped");
-    } else {
-        log!("[pomodoro] started");
-        let timer = Timer::default();
-        timer.start(TimerMode::Repeated, Duration::from_secs(1), || with_app(pomodoro_tick));
-        *app.pomodoro.borrow_mut() = Some(PomodoroRun { cycle: Pomodoro::start(Instant::now()), _timer: timer, reminder: None });
-        app.window.set_error_text(SharedString::new());
-        app.window.set_tab(1);
     }
-    // Dropped here, outside the borrow: this removes the reminder card if it's shown
     drop(stopped);
     if let Some(tray) = &app.tray {
-        tray.set_pomodoro_running(app.pomodoro.borrow().is_some());
+        tray.set_pomodoro_running(false);
     }
     update_pomodoro_view(app);
 }
 
 fn pomodoro_tick(app: &Rc<App>) {
+    let now = time_format::now_ms();
     let event = {
         let mut slot = app.pomodoro.borrow_mut();
         let Some(run) = slot.as_mut() else { return };
-        let event = run.cycle.tick(Instant::now());
+        let event = run.tracker.tick(now);
         match event {
             Some(pomodoro::Event::Remind) => {
-                let minutes = run.cycle.break_length().as_secs() / 60;
+                let minutes = pomodoro::break_length(run.tracker.phase(now).round()).as_secs() / 60;
                 let message = format!("Save your work: the screen will lock for a {minutes}-minute break.");
                 run.reminder = Reminder::show(&message).inspect_err(|e| log!("[pomodoro] couldn't show the reminder: {e}")).ok();
             }
@@ -369,17 +404,12 @@ fn pomodoro_tick(app: &Rc<App>) {
         }
         event
     };
-    if let Some(pomodoro::Event::BreakDue(length)) = event {
-        log!("[pomodoro] break of {} minutes", length.as_secs() / 60);
+    // Not while a detox is on screen (e.g. one started on a paired device): it ends first
+    if let Some(pomodoro::Event::BreakDue(length)) = event
+        && app.session.borrow().is_none()
+    {
+        log!("[pomodoro] break of {} s", length.as_secs());
         start_lock(app, length, SessionKind::Break);
-    }
-    update_pomodoro_view(app);
-}
-
-/// A Pomodoro break has ended (or couldn't start): next work round
-fn break_over(app: &Rc<App>) {
-    if let Some(run) = app.pomodoro.borrow_mut().as_mut() {
-        run.cycle.break_over(Instant::now());
     }
     update_pomodoro_view(app);
 }
@@ -387,16 +417,16 @@ fn break_over(app: &Rc<App>) {
 /// Shows the state of the Pomodoro in the main window and in the tray icon's tooltip
 fn update_pomodoro_view(app: &App) {
     let window = &app.window;
-    let now = Instant::now();
     let slot = app.pomodoro.borrow();
     let tooltip = match slot.as_ref() {
         Some(run) => {
-            let round = run.cycle.round();
-            let break_minutes = run.cycle.break_length().as_secs() / 60;
+            let phase = run.tracker.phase(time_format::now_ms());
+            let round = phase.round();
             window.set_pomodoro_running(true);
             window.set_pomodoro_round(round as i32);
-            match run.cycle.remaining(now) {
-                Some(remaining) => {
+            match phase {
+                pomodoro::Phase::Work { remaining, .. } => {
+                    let break_minutes = pomodoro::break_length(round).as_secs() / 60;
                     window.set_pomodoro_time(time_format::countdown(remaining).into());
                     window.set_pomodoro_caption(format!("until your {break_minutes}-minute break").into());
                     let break_at = chrono::Local::now() + remaining;
@@ -404,10 +434,11 @@ fn update_pomodoro_view(app: &App) {
                     let minutes = remaining.as_secs().div_ceil(60);
                     format!("Digital Detox - Pomodoro {round}/{}, break in {minutes} min", pomodoro::ROUNDS)
                 }
-                None => {
-                    window.set_pomodoro_time(time_format::countdown(Duration::ZERO).into());
-                    window.set_pomodoro_caption("break in progress".into());
-                    window.set_pomodoro_info(SharedString::new());
+                pomodoro::Phase::Break { remaining, .. } => {
+                    window.set_pomodoro_time(time_format::countdown(remaining).into());
+                    window.set_pomodoro_caption("of break left".into());
+                    let back_at = chrono::Local::now() + remaining;
+                    window.set_pomodoro_info(format!("Next round at {}", time_format::short_time(back_at)).into());
                     "Digital Detox - Pomodoro break".into()
                 }
             }
