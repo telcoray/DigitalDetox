@@ -97,6 +97,12 @@ fn main() -> Result<(), slint::PlatformError> {
     };
 
     log::start();
+    // A release build has no console, so a panic would leave no trace; and the app may not get
+    // to restore the taskbars if it goes down (a panic inside a Windows callback aborts it)
+    std::panic::set_hook(Box::new(|info| {
+        log!("[panic] {info}");
+        taskbar::recover();
+    }));
 
     // If a previous run was closed abruptly during a detox, give the screen its brightness and
     // the taskbars back
