@@ -10,11 +10,12 @@
 //! detox the taskbars are also hidden outright (`HiddenTaskbars`).
 
 use slint::winit_030::WinitWindowAccessor;
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx};
 use windows::Win32::UI::Shell::{ITaskbarList2, TaskbarList};
 use windows::Win32::UI::WindowsAndMessaging::{
-    FindWindowExW, FindWindowW, IsWindowVisible, SW_HIDE, SW_SHOW, ShowWindow,
+    FindWindowExW, FindWindowW, HWND_BROADCAST, IsWindowVisible, SMTO_ABORTIFHUNG, SW_HIDE, SW_SHOW, SendMessageTimeoutW,
+    ShowWindow, WM_SETTINGCHANGE,
 };
 use windows::core::{PCWSTR, w};
 
@@ -86,7 +87,28 @@ fn show(taskbars: &[HWND]) {
             let _ = ShowWindow(hwnd, SW_SHOW);
         }
     }
+    refresh_taskbar_settings();
     let _ = std::fs::remove_file(marker_path());
+}
+
+/// With "Automatically hide the taskbar" on, a taskbar shown again with ShowWindow stays on
+/// screen, and on secondary monitors an invisible strip keeps catching the clicks.
+/// "TraySettings" asks Explorer to read the taskbar settings again, which lays them out afresh,
+/// auto-hide included. (Asking for the auto-hide state through SHAppBarMessage doesn't work on
+/// recent Windows 11 builds: it always answers "off".)
+fn refresh_taskbar_settings() {
+    let mut result = 0usize;
+    unsafe {
+        let _ = SendMessageTimeoutW(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            WPARAM(0),
+            LPARAM(w!("TraySettings").as_ptr() as isize),
+            SMTO_ABORTIFHUNG,
+            1000,
+            Some(&mut result),
+        );
+    }
 }
 
 /// The main taskbar, plus one per secondary monitor
