@@ -226,6 +226,7 @@ export component MainWindow inherits Window {
 
     // The Pomodoro, kept up to date by Rust: "24:59", "until your 5-minute break", "Break at 21:15"
     in property <bool> pomodoro-running;
+    in property <bool> pomodoro-paused;
     in property <int> pomodoro-round: 1;
     in property <string> pomodoro-time;
     in property <string> pomodoro-caption;
@@ -250,6 +251,8 @@ export component MainWindow inherits Window {
     callback start-clicked();
     // Starts the Pomodoro, or stops it when it's running
     callback pomodoro-clicked();
+    // Pauses the running Pomodoro, or resumes it
+    callback pause-clicked();
     callback sync-toggled();
     callback pair-clicked();
     callback enter-code-clicked();
@@ -373,7 +376,7 @@ export component MainWindow inherits Window {
                     padding-top: 20px;
 
                     Label {
-                        text: root.pomodoro-running ? "Stay focused" : "Work in focused rounds";
+                        text: root.pomodoro-paused ? "Take your time" : root.pomodoro-running ? "Stay focused" : "Work in focused rounds";
                         font-size: 16px;
                         color: Theme.muted;
                     }
@@ -428,9 +431,29 @@ export component MainWindow inherits Window {
                     clicked => { root.pomodoro-clicked(); }
                 }
 
-                if root.pomodoro-running: SecondaryButton {
-                    text: "Stop Pomodoro";
-                    clicked => { root.pomodoro-clicked(); }
+                if root.pomodoro-running: HorizontalLayout {
+                    spacing: 8px;
+
+                    if !root.pomodoro-paused: SecondaryButton {
+                        horizontal-stretch: 1;
+                        text: "Pause";
+                        clicked => { root.pause-clicked(); }
+                    }
+
+                    if root.pomodoro-paused: PrimaryButton {
+                        horizontal-stretch: 1;
+                        text: "Resume";
+                        fill: Theme.tomato;
+                        hover-color: Theme.tomato-hover;
+                        pressed-color: Theme.tomato-pressed;
+                        clicked => { root.pause-clicked(); }
+                    }
+
+                    SecondaryButton {
+                        horizontal-stretch: 1;
+                        text: "Stop";
+                        clicked => { root.pomodoro-clicked(); }
+                    }
                 }
             }
 

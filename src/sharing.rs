@@ -161,10 +161,10 @@ pub fn after_lock(app: &Rc<App>) {
 fn apply(app: &Rc<App>) {
     match app.sharing.current.get().1 {
         Shared::Idle => crate::stop_pomodoro(app),
-        Shared::Pomodoro { start } => {
-            let running = app.pomodoro.borrow().as_ref().map(|run| run.tracker.start_ms());
-            if running != Some(start) {
-                crate::run_pomodoro(app, start);
+        Shared::Pomodoro { start, paused_at } => {
+            let running = app.pomodoro.borrow().as_ref().map(|run| (run.tracker.start_ms(), run.tracker.paused_at()));
+            if running != Some((start, paused_at)) {
+                crate::run_pomodoro(app, start, paused_at);
             }
         }
         Shared::Detox { ends_at } => {

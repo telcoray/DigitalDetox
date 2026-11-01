@@ -47,6 +47,7 @@ pub enum Action {
     Open,
     Start(u64),
     TogglePomodoro,
+    TogglePause,
     ToggleSync,
     ToggleAutostart,
     Quit,
@@ -178,6 +179,7 @@ fn handle(app: &Rc<App>, action: Action) {
         Action::Start(_) if app.pomodoro.borrow().is_some() => {}
         Action::Start(minutes) => start_detox(app, Duration::from_secs(minutes * 60)),
         Action::TogglePomodoro => toggle_pomodoro(app),
+        Action::TogglePause => toggle_pause(app),
         Action::ToggleSync => sharing::toggle(app),
         Action::ToggleAutostart => toggle_autostart(app),
         Action::Quit => {
@@ -223,6 +225,7 @@ fn setup_main_window(window: &MainWindow, has_tray: bool) {
         })
     });
     window.on_pomodoro_clicked(|| with_app(toggle_pomodoro));
+    window.on_pause_clicked(|| with_app(toggle_pause));
 
     // The X hides the window in the notification area instead of quitting.
     // Without a tray icon there would be no way back, so then it quits.
@@ -354,17 +357,40 @@ fn toggle_pomodoro(app: &Rc<App>) {
         sharing::publish(app, sync::Shared::Idle);
     } else {
         let start = time_format::now_ms();
-        run_pomodoro(app, start);
-        sharing::publish(app, sync::Shared::Pomodoro { start });
+        run_pomodoro(app, start, None);
+        sharing::publish(app, sync::Shared::Pomodoro { start, paused_at: None });
     }
 }
 
-/// Runs the Pomodoro that started at `start_ms` (now, or earlier on a paired device)
-fn run_pomodoro(app: &Rc<App>, start_ms: u64) {
-    log!("[pomodoro] running, started at {start_ms}");
+/// Pauses the Pomodoro, or resumes it. Paired devices do the same.
+fn toggle_pause(app: &Rc<App>) {
+    let now = time_format::now_ms();
+    let shared = {
+        let mut slot = app.pomodoro.borrow_mut();
+        let Some(run) = slot.as_mut() else { return };
+        if run.tracker.paused_at().is_some() {
+            run.tracker.resume(now);
+            log!("[pomodoro] resumed");
+        } else {
+            run.tracker.pause(now);
+            // Nothing to save the work for now
+            run.reminder = None;
+            log!("[pomodoro] paused");
+        }
+        sync::Shared::Pomodoro { start: run.tracker.start_ms(), paused_at: run.tracker.paused_at() }
+    };
+    sharing::publish(app, shared);
+    update_pomodoro_view(app);
+}
+
+/// Runs the Pomodoro that started at `start_ms` (now, or earlier on a paired device), paused
+/// since `paused_at` if it is
+fn run_pomodoro(app: &Rc<App>, start_ms: u64, paused_at: Option<u64>) {
+    log!("[pomodoro] running, started at {start_ms}, paused at {paused_at:?}");
     let timer = Timer::default();
     timer.start(TimerMode::Repeated, Duration::from_secs(1), || with_app(pomodoro_tick));
-    let previous = app.pomodoro.replace(Some(PomodoroRun { tracker: pomodoro::Tracker::new(start_ms), _timer: timer, reminder: None }));
+    let tracker = pomodoro::Tracker::new(start_ms, paused_at);
+    let previous = app.pomodoro.replace(Some(PomodoroRun { tracker, _timer: timer, reminder: None }));
     // Dropped outside the borrow: this removes its reminder card if it's shown
     drop(previous);
     app.window.set_error_text(SharedString::new());
@@ -422,9 +448,20 @@ fn update_pomodoro_view(app: &App) {
         Some(run) => {
             let phase = run.tracker.phase(time_format::now_ms());
             let round = phase.round();
+            let paused = run.tracker.paused_at().is_some();
             window.set_pomodoro_running(true);
+            window.set_pomodoro_paused(paused);
             window.set_pomodoro_round(round as i32);
+            if let Some(tray) = &app.tray {
+                tray.set_pomodoro_paused(paused);
+            }
             match phase {
+                pomodoro::Phase::Work { remaining, .. } if paused => {
+                    window.set_pomodoro_time(time_format::countdown(remaining).into());
+                    window.set_pomodoro_caption("paused".into());
+                    window.set_pomodoro_info("Resume when you're ready".into());
+                    "Digital Detox - Pomodoro paused".into()
+                }
                 pomodoro::Phase::Work { remaining, .. } => {
                     let break_minutes = pomodoro::break_length(round).as_secs() / 60;
                     window.set_pomodoro_time(time_format::countdown(remaining).into());
@@ -446,6 +483,7 @@ fn update_pomodoro_view(app: &App) {
         None => {
             let break_minutes = pomodoro::SHORT_BREAK.as_secs() / 60;
             window.set_pomodoro_running(false);
+            window.set_pomodoro_paused(false);
             window.set_pomodoro_round(1);
             window.set_pomodoro_time(time_format::countdown(pomodoro::WORK).into());
             window.set_pomodoro_caption(format!("of focus, then a {break_minutes}-minute break").into());

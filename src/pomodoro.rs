@@ -4,7 +4,8 @@
 //! The whole schedule follows from the moment the Pomodoro started (a Unix time, in
 //! milliseconds). Two paired devices that know the same start time are therefore always in the
 //! same round and lock at the same moment, even if one of them joins halfway or wakes up from
-//! sleep. main.rs ticks a `Tracker` every second, shows the reminder and starts the breaks.
+//! sleep. A pause freezes the schedule; resuming moves the start later by the pause's length.
+//! main.rs ticks a `Tracker` every second, shows the reminder and starts the breaks.
 
 use std::time::Duration;
 
@@ -69,25 +70,45 @@ pub enum Event {
 /// Follows a running Pomodoro and reports when something has to happen
 pub struct Tracker {
     start_ms: u64,
+    // When it was paused, while it is
+    paused_at: Option<u64>,
     // The phase seen at the last tick, as (round, is a break)
     last: Option<(u32, bool)>,
     reminded: bool,
 }
 
 impl Tracker {
-    pub fn new(start_ms: u64) -> Self {
-        Self { start_ms, last: None, reminded: false }
+    pub fn new(start_ms: u64, paused_at: Option<u64>) -> Self {
+        Self { start_ms, paused_at, last: None, reminded: false }
     }
 
     pub fn start_ms(&self) -> u64 {
         self.start_ms
     }
 
+    pub fn paused_at(&self) -> Option<u64> {
+        self.paused_at
+    }
+
+    /// While paused, the phase stays where it was when the pause began
     pub fn phase(&self, now_ms: u64) -> Phase {
-        phase_at(self.start_ms, now_ms)
+        phase_at(self.start_ms, self.paused_at.unwrap_or(now_ms))
+    }
+
+    pub fn pause(&mut self, now_ms: u64) {
+        self.paused_at.get_or_insert(now_ms);
+    }
+
+    pub fn resume(&mut self, now_ms: u64) {
+        if let Some(paused_at) = self.paused_at.take() {
+            self.start_ms += now_ms.saturating_sub(paused_at);
+        }
     }
 
     pub fn tick(&mut self, now_ms: u64) -> Option<Event> {
+        if self.paused_at.is_some() {
+            return None;
+        }
         let phase = self.phase(now_ms);
         let key = (phase.round(), matches!(phase, Phase::Break { .. }));
         let entered = self.last.replace(key) != Some(key);
@@ -132,7 +153,7 @@ mod tests {
     #[test]
     fn reminds_once_then_locks_once() {
         let start = 0;
-        let mut tracker = Tracker::new(start);
+        let mut tracker = Tracker::new(start, None);
         assert_eq!(tracker.tick(start), None);
         assert_eq!(tracker.tick(ms(WORK - REMINDER)), Some(Event::Remind));
         assert_eq!(tracker.tick(ms(WORK - REMINDER) + 1000), None);
@@ -145,11 +166,24 @@ mod tests {
 
     #[test]
     fn joining_during_a_break_locks_for_what_is_left() {
-        let mut tracker = Tracker::new(0);
+        let mut tracker = Tracker::new(0, None);
         let now = ms(WORK) + 60_000;
         assert_eq!(tracker.tick(now), Some(Event::BreakDue(SHORT_BREAK - Duration::from_secs(60))));
         // Too late to bother
-        let mut tracker = Tracker::new(0);
+        let mut tracker = Tracker::new(0, None);
         assert_eq!(tracker.tick(ms(WORK + SHORT_BREAK) - 2000), None);
+    }
+
+    #[test]
+    fn a_pause_freezes_the_countdown() {
+        let mut tracker = Tracker::new(0, None);
+        tracker.tick(0);
+        tracker.pause(ms(WORK) - 300_000);
+        // Long past the end of the work round, but paused: no break
+        assert_eq!(tracker.tick(ms(WORK) * 3), None);
+        assert_eq!(tracker.phase(ms(WORK) * 3), Phase::Work { round: 1, remaining: Duration::from_secs(300) });
+        tracker.resume(ms(WORK) * 3);
+        assert_eq!(tracker.phase(ms(WORK) * 3), Phase::Work { round: 1, remaining: Duration::from_secs(300) });
+        assert_eq!(tracker.tick(ms(WORK) * 3 + 300_000), Some(Event::BreakDue(SHORT_BREAK)));
     }
 }

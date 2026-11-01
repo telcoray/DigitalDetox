@@ -21,6 +21,7 @@ pub struct Tray {
     open: MenuItem,
     start: Submenu,
     pomodoro: MenuItem,
+    pause: MenuItem,
     sync: CheckMenuItem,
     autostart: CheckMenuItem,
     quit: MenuItem,
@@ -40,11 +41,12 @@ impl Tray {
             start.append(&MenuItem::with_id(format!("start:{minutes}"), format!("{minutes} minutes"), true, None))?;
         }
         let pomodoro = MenuItem::with_id("pomodoro", "Start Pomodoro", true, None);
+        let pause = MenuItem::with_id("pause", "Pause Pomodoro", false, None);
         let sync = CheckMenuItem::with_id("sync", "Sync with paired devices", false, false, None);
         let autostart = CheckMenuItem::with_id("autostart", "Start with Windows", true, autostart, None);
         let quit = MenuItem::with_id("quit", "Quit", true, None);
-        let menu =
-            Menu::with_items(&[&open, &start, &pomodoro, &PredefinedMenuItem::separator(), &sync, &autostart, &quit])?;
+        let separator = PredefinedMenuItem::separator();
+        let menu = Menu::with_items(&[&open, &start, &pomodoro, &pause, &separator, &sync, &autostart, &quit])?;
 
         let icon = TrayIconBuilder::new()
             // The app icon embedded in the .exe by build.rs (resource ID 1)
@@ -65,6 +67,7 @@ impl Tray {
             let action = match event.id.as_ref() {
                 "open" => Action::Open,
                 "pomodoro" => Action::TogglePomodoro,
+                "pause" => Action::TogglePause,
                 "sync" => Action::ToggleSync,
                 "autostart" => Action::ToggleAutostart,
                 "quit" => Action::Quit,
@@ -81,6 +84,7 @@ impl Tray {
             open,
             start,
             pomodoro,
+            pause,
             sync,
             autostart,
             quit,
@@ -111,9 +115,15 @@ impl Tray {
         self.open.set_enabled(!detox);
         self.start.set_enabled(!detox && !self.pomodoro_running.get());
         self.pomodoro.set_enabled(!detox);
+        self.pause.set_enabled(!detox && self.pomodoro_running.get());
         self.sync.set_enabled(!detox && self.paired.get());
         self.autostart.set_enabled(!detox);
         self.quit.set_enabled(!detox);
+    }
+
+    /// "Pause Pomodoro" becomes "Resume Pomodoro" while it's paused
+    pub fn set_pomodoro_paused(&self, paused: bool) {
+        self.pause.set_text(if paused { "Resume Pomodoro" } else { "Pause Pomodoro" });
     }
 
     /// The "Sync with paired devices" check mark; the item is greyed out until a device is paired

@@ -85,7 +85,7 @@ assets/      logo and icon
 2. Click **Start detox** (or press Enter)
 3. Step away from the screen; it unlocks by itself when the timer reaches zero
 
-For the Pomodoro mode, open the **Pomodoro** tab and click **Start Pomodoro**. It keeps going round after round until you click **Stop Pomodoro**, here or in the tray menu.
+For the Pomodoro mode, open the **Pomodoro** tab and click **Start Pomodoro**. It keeps going round after round until you click **Stop**, here or in the tray menu. **Pause** freezes the countdown until you click **Resume**.
 
 <br clear="right" />
 

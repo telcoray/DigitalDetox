@@ -28,7 +28,12 @@ const ID_JOINER: &[u8] = b"digital-detox joiner";
 pub enum Shared {
     Idle,
     Detox { ends_at: u64 },
-    Pomodoro { start: u64 },
+    Pomodoro {
+        start: u64,
+        // Set while paused. Optional, so older versions still read the message.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        paused_at: Option<u64>,
+    },
 }
 
 /// When a change was made and by which device: on every device the most recent change wins
@@ -218,7 +223,7 @@ mod tests {
             device: 1,
             name: "PC".into(),
             version: Version { time: 10, device: 1 },
-            shared: Shared::Pomodoro { start: 123 },
+            shared: Shared::Pomodoro { start: 123, paused_at: Some(456) },
             reply: false,
         }
     }
