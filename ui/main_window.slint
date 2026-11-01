@@ -173,13 +173,19 @@ component RoundDots inherits HorizontalLayout {
     alignment: center;
     spacing: 10px;
 
-    for index in root.rounds: Rectangle {
-        width: 12px;
-        height: 12px;
-        border-radius: 6px;
-        border-width: 1px;
-        border-color: root.running && index + 1 <= root.current ? Theme.tomato : Theme.outline-hover;
-        background: root.running && index + 1 < root.current ? Theme.tomato : transparent;
+    // Centered on the text's letters, which sit about 1px below the middle of the line
+    for index in root.rounds: VerticalLayout {
+        alignment: center;
+        padding-top: 2px;
+
+        Rectangle {
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            border-width: 1px;
+            border-color: root.running && index + 1 <= root.current ? Theme.tomato : Theme.outline-hover;
+            background: root.running && index + 1 < root.current ? Theme.tomato : transparent;
+        }
     }
 
     Label {
