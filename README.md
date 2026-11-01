@@ -85,7 +85,19 @@ assets/      logo and icon
 2. Click **Start detox** (or press Enter)
 3. Step away from the screen; it unlocks by itself when the timer reaches zero
 
-For the Pomodoro mode, open the **Pomodoro** tab and click **Start Pomodoro**. It keeps going round after round until you click **Stop**, here or in the tray menu. **Pause** freezes the countdown until you click **Resume**.
+<br clear="right" />
+
+### Pomodoro
+
+<img src="screenshots/pomodoro.png" alt="Pomodoro tab" width="320" align="right" />
+
+Open the **Pomodoro** tab and click **Start Pomodoro**:
+
+1. Work for 25 minutes with your PC free
+2. A minute before the break, a small reminder appears in the corner so you can save your work
+3. The screen locks for a 5-minute break, then the next round starts by itself. Every 4th break lasts 15 minutes
+
+It keeps going round after round until you click **Stop**, here or in the tray menu. **Pause** freezes the countdown until you click **Resume**.
 
 <br clear="right" />
 
