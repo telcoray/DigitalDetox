@@ -277,6 +277,9 @@ export component MainWindow inherits Window {
         background: root.repaint-flip ? #1A1A2F : Theme.background;
     }
 
+    // Each tab starts at the top, with its "more below" hint
+    changed tab => { scroll.offset = 0; }
+
     scroll := ScrollArea {
         width: 100%;
         height: 100%;
@@ -702,6 +705,28 @@ export component MainWindow inherits Window {
                 color: Theme.muted;
                 horizontal-alignment: left;
             }
+        }
+    }
+
+    // A chevron in the empty strip under the button: there's more below. Clicking it scrolls
+    // there; it goes away once the window is scrolled.
+    if scroll.max-offset > 0 && scroll.offset == 0: Rectangle {
+        x: (root.width - self.width) / 2;
+        y: root.height - self.height - 2px;
+        width: 48px;
+        height: 24px;
+
+        Path {
+            width: 14px;
+            height: 7px;
+            commands: "M 0 0 L 7 6 L 14 0";
+            stroke: more-touch.has-hover ? Theme.faint : Theme.outline-hover;
+            stroke-width: 1.5px;
+        }
+
+        more-touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { scroll.offset = scroll.max-offset; }
         }
     }
 }

@@ -74,9 +74,10 @@ export component ScrollArea inherits Rectangle {
     // Same as WPF: 3 lines of 16px per wheel notch
     in property <length> step: 48px;
 
-    property <length> offset: 0px;
+    // How far down the content is scrolled (in-out, so a "more below" hint can scroll it)
+    in-out property <length> offset: 0px;
     property <length> content-height: content.preferred-height;
-    property <length> max-offset: max(0px, root.content-height - root.height);
+    out property <length> max-offset: max(0px, root.content-height - root.height);
 
     clip: true;
 
