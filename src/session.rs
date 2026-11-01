@@ -10,6 +10,7 @@ use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
 use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
 use crate::brightness;
+use crate::dpi;
 use crate::foreground::ForegroundGuard;
 use crate::keyboard_hook::KeyboardHook;
 use crate::taskbar::{self, HiddenTaskbars};
@@ -262,6 +263,7 @@ fn create_cover(monitor: &winit::monitor::MonitorHandle, lock: &LockWindow) -> R
     // Start as dark as the lock screen currently is
     cover.set_shade_level(lock.get_shade_level());
     cover.window().on_close_requested(|| CloseRequestResponse::KeepWindowShown);
+    dpi::install(cover.window());
 
     // Open the window on its monitor, then make it full screen there
     let position = monitor.position();
@@ -280,7 +282,10 @@ fn create_cover(monitor: &winit::monitor::MonitorHandle, lock: &LockWindow) -> R
 /// take it back right away, like the Deactivated handler of the C# version.
 fn keep_focus(window: &LockWindow) {
     let weak = window.as_weak();
-    window.window().on_winit_window_event(move |_, event| {
+    window.window().on_winit_window_event(move |window, event| {
+        if let EventResult::PreventDefault = dpi::follow_scale_factor(window, event) {
+            return EventResult::PreventDefault;
+        }
         if matches!(event, winit::event::WindowEvent::Focused(false)) {
             // Deferred to the next loop iteration, so Windows has finished switching windows
             let weak = weak.clone();

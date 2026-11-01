@@ -37,6 +37,8 @@ impl Reminder {
             }
         });
 
+        crate::dpi::install(window.window());
+
         let previous = unsafe { GetForegroundWindow() };
         // A first guess, so the window is created on the primary monitor and not elsewhere
         if let Some(area) = work_area() {

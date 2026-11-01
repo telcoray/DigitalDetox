@@ -16,6 +16,7 @@ macro_rules! log {
 
 mod autostart;
 mod brightness;
+mod dpi;
 mod foreground;
 mod keyboard_hook;
 mod log;
@@ -108,7 +109,7 @@ fn main() -> Result<(), slint::PlatformError> {
     // to restore the taskbars if it goes down (a panic inside a Windows callback aborts it)
     std::panic::set_hook(Box::new(|info| {
         log!("[panic] {info}");
-        taskbar::recover();
+        taskbar::recover_after_panic();
     }));
 
     // If a previous run was closed abruptly during a detox, give the screen its brightness and
@@ -239,7 +240,10 @@ fn setup_main_window(window: &MainWindow, has_tray: bool) {
     // Windows reports minimizing as a resize to 0x0, and restoring as a resize back
     let minimized = Cell::new(false);
     let weak = window.as_weak();
-    window.window().on_winit_window_event(move |_, event| {
+    window.window().on_winit_window_event(move |window, event| {
+        if let EventResult::PreventDefault = dpi::follow_scale_factor(window, event) {
+            return EventResult::PreventDefault;
+        }
         if let WindowEvent::Resized(size) = event {
             if size.width == 0 || size.height == 0 {
                 minimized.set(true);

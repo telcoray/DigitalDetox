@@ -11,11 +11,12 @@
 
 use slint::winit_030::WinitWindowAccessor;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+use windows::core::BOOL;
 use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx};
 use windows::Win32::UI::Shell::{ITaskbarList2, TaskbarList};
 use windows::Win32::UI::WindowsAndMessaging::{
-    FindWindowExW, FindWindowW, HWND_BROADCAST, IsWindowVisible, SMTO_ABORTIFHUNG, SW_HIDE, SW_SHOW, SendMessageTimeoutW,
-    ShowWindow, WM_SETTINGCHANGE,
+    EnumWindows, FindWindowExW, FindWindowW, GetWindowThreadProcessId, HWND_BROADCAST, IsWindowVisible, SMTO_ABORTIFHUNG,
+    SW_HIDE, SW_SHOW, SendMessageTimeoutW, ShowWindow, WM_SETTINGCHANGE,
 };
 use windows::core::{PCWSTR, w};
 
@@ -78,6 +79,32 @@ pub fn recover() {
     if marker_path().exists() {
         log!("[taskbar] the previous run left the taskbars hidden, showing them");
         show(&find_taskbars());
+    }
+}
+
+/// From the panic hook, when the app is about to go down in the middle of a detox. The lock
+/// screen is hidden first, as at the normal end of a detox: a taskbar shown while a full-screen
+/// window is still there stays on screen, even with auto-hide on.
+pub fn recover_after_panic() {
+    if marker_path().exists() {
+        hide_own_windows();
+        recover();
+    }
+}
+
+fn hide_own_windows() {
+    unsafe extern "system" fn hide_if_ours(hwnd: HWND, _: LPARAM) -> BOOL {
+        let mut process = 0;
+        unsafe {
+            GetWindowThreadProcessId(hwnd, Some(&mut process));
+            if process == std::process::id() && IsWindowVisible(hwnd).as_bool() {
+                let _ = ShowWindow(hwnd, SW_HIDE);
+            }
+        }
+        true.into()
+    }
+    unsafe {
+        let _ = EnumWindows(Some(hide_if_ours), LPARAM(0));
     }
 }
 
