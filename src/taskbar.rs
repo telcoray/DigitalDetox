@@ -40,7 +40,10 @@ pub fn mark_fullscreen(window: &slint::Window) {
 /// The taskbars of every monitor, hidden while this value lives and shown again when it's dropped.
 /// A marker file records that they're hidden, so `recover` can bring them back if the app is
 /// closed abruptly.
-pub struct HiddenTaskbars(Vec<HWND>);
+///
+/// The taskbars are looked up again each time: when a monitor is disconnected and reconnected
+/// (which waking it up can do), Explorer gives it a new taskbar.
+pub struct HiddenTaskbars;
 
 impl HiddenTaskbars {
     pub fn hide() -> Self {
@@ -53,12 +56,13 @@ impl HiddenTaskbars {
             }
         }
         log!("[taskbar] {} taskbar(s) hidden", taskbars.len());
-        Self(taskbars)
+        Self
     }
 
-    /// Explorer shows the taskbar again whenever Start opens: hide it once more
+    /// Explorer shows the taskbar again whenever Start opens, or creates a new one for a monitor
+    /// that comes back: hide it once more
     pub fn keep_hidden(&self) {
-        for &hwnd in &self.0 {
+        for hwnd in find_taskbars() {
             unsafe {
                 if IsWindowVisible(hwnd).as_bool() {
                     let _ = ShowWindow(hwnd, SW_HIDE);
@@ -70,7 +74,7 @@ impl HiddenTaskbars {
 
 impl Drop for HiddenTaskbars {
     fn drop(&mut self) {
-        show(&self.0);
+        show(&find_taskbars());
     }
 }
 

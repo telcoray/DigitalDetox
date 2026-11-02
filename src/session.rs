@@ -119,6 +119,8 @@ impl LockSession {
         let foreground = ForegroundGuard::default();
         let taskbars = Rc::new(HiddenTaskbars::hide());
         let timer_taskbars = taskbars.clone();
+        // The monitors as they were last covered; None until the first tick
+        let mut layout = None;
         timer.start(TimerMode::Repeated, Duration::from_millis(250), move || {
             let Some(window) = weak.upgrade() else { return };
             if window.get_completed() {
@@ -126,6 +128,7 @@ impl LockSession {
             }
             // Start or another app may have taken the focus (see foreground.rs)
             foreground.check(window.window());
+            follow_monitor_changes(&window, &mut timer_covers.borrow_mut(), &mut layout);
             timer_taskbars.keep_hidden();
             let covers = timer_covers.borrow();
             if update_display(&window, &covers, end, duration) {
@@ -234,6 +237,42 @@ fn apply_shade(window: &LockWindow, covers: &[CoverWindow], shade: Shade) {
     for cover in covers {
         cover.set_shade_fade(fade);
         cover.set_shade_level(shade.level);
+    }
+}
+
+/// Position and size of every monitor, in a stable order
+type MonitorLayout = Vec<(i32, i32, u32, u32)>;
+
+fn monitor_layout(window: &LockWindow) -> MonitorLayout {
+    let mut layout: MonitorLayout = window
+        .window()
+        .with_winit_window(|w| {
+            w.available_monitors()
+                .map(|m| (m.position().x, m.position().y, m.size().width, m.size().height))
+                .collect()
+        })
+        .unwrap_or_default();
+    layout.sort();
+    layout
+}
+
+/// When a monitor wakes up, Windows may disconnect and reconnect it, or bring it back for a moment
+/// at another resolution. Its cover window is then left elsewhere and the screen shows the desktop.
+/// Whenever the monitors change, cover them all again.
+fn follow_monitor_changes(window: &LockWindow, covers: &mut Vec<CoverWindow>, last: &mut Option<MonitorLayout>) {
+    let layout = monitor_layout(window);
+    match last {
+        None => *last = Some(layout),
+        Some(last) if *last == layout => {}
+        Some(last) => {
+            log!("[session] monitors changed: {last:?} -> {layout:?}");
+            *last = layout;
+            for cover in covers.drain(..) {
+                let _ = cover.hide();
+            }
+            cover_secondary_monitors(window, covers);
+            window.window().with_winit_window(|w| w.focus_window());
+        }
     }
 }
 
