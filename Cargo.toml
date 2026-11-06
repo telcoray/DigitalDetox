@@ -1,6 +1,6 @@
 [package]
 name = "digital-detox"
-version = "2.8.2"
+version = "2.8.3"
 edition = "2024"
 description = "Locks your screen for a set amount of time, so you actually take that break"
 authors = ["telcoray"]
