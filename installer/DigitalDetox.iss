@@ -51,8 +51,20 @@ ShowLanguageDialog=auto
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 
+[Messages]
+italian.WizardSelectTasks=Opzioni aggiuntive
+italian.SelectTasksDesc=Personalizza l'installazione di Digital Detox.
+italian.SelectTasksLabel2=Scegli le opzioni che preferisci, quindi seleziona Avanti.
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "autostart"; Description: "{cm:StartWithWindows}"; GroupDescription: "{cm:AdditionalOptions}"; Flags: unchecked
+
+[CustomMessages]
+english.StartWithWindows=Start Digital Detox when I sign in to Windows
+english.AdditionalOptions=Additional options:
+italian.StartWithWindows=Avvia Digital Detox all'accesso a Windows
+italian.AdditionalOptions=Opzioni aggiuntive:
 
 [Files]
 Source: "..\target\release\digital-detox.exe"; DestDir: "{app}"; DestName: "{#AppExe}"; Flags: ignoreversion
@@ -71,18 +83,82 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags
 Filename: "{sys}\taskkill.exe"; Parameters: "/IM {#AppExe} /F"; Flags: runhidden; RunOnceId: "CloseApp"
 
 [Code]
-// "Start with Windows" is turned on from the app's tray menu, so the installer doesn't know
-// about it: remove its entries on uninstall, or Windows would try to start a missing file.
-// Only when the entry points to this install, not to a copy of the zip kept somewhere else.
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+const
+  RunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
+  ApprovedKey = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run';
+
+function OwnsStartupEntry: Boolean;
 var
   Command: String;
 begin
-  if (CurUninstallStep = usUninstall) and
-     RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'DigitalDetox', Command) and
-     (Pos(Lowercase(ExpandConstant('{app}\{#AppExe}')), Lowercase(Command)) > 0) then
+  Result := RegQueryStringValue(HKCU, RunKey, 'DigitalDetox', Command) and
+    (Pos(Lowercase('"' + ExpandConstant('{app}\{#AppExe}') + '"'), Lowercase(Command)) = 1);
+end;
+
+procedure InitializeStartupTask;
+var
+  Approval: AnsiString;
+  Enabled: Boolean;
+begin
+  // Follow the current tray/Windows setting on upgrades, rather than the last install choice.
+  // Leave explicit command-line task choices to Inno Setup.
+  if (ExpandConstant('{param:TASKS|}') <> '') or
+     (ExpandConstant('{param:MERGETASKS|}') <> '') then
+    Exit;
+  Enabled := OwnsStartupEntry;
+  if RegQueryBinaryValue(HKCU, ApprovedKey, 'DigitalDetox', Approval) then
+    if Length(Approval) > 0 then
+      Enabled := Enabled and ((Ord(Approval[1]) mod 2) = 0);
+  if Enabled then
+    WizardSelectTasks('autostart')
+  else
+    WizardSelectTasks('!autostart');
+end;
+
+// Initialize only when the tasks page is reached: {app} is not available in InitializeWizard.
+// ShouldSkipPage also runs during silent setup. Remember the choice when navigating back.
+var
+  StartupTaskInitialized: Boolean;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if (PageID = wpSelectTasks) and not StartupTaskInitialized then
   begin
-    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'DigitalDetox');
-    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run', 'DigitalDetox');
+    InitializeStartupTask;
+    StartupTaskInitialized := True;
+    Log('Startup task initialized after destination selection.');
   end;
+end;
+
+procedure RemoveStartupEntry;
+begin
+  // Do not remove the entry of a portable copy kept somewhere else.
+  if OwnsStartupEntry then
+  begin
+    RegDeleteValue(HKCU, RunKey, 'DigitalDetox');
+    RegDeleteValue(HKCU, ApprovedKey, 'DigitalDetox');
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep <> ssPostInstall then
+    Exit;
+  if WizardIsTaskSelected('autostart') then
+  begin
+    if not RegWriteStringValue(HKCU, RunKey, 'DigitalDetox',
+      '"' + ExpandConstant('{app}\{#AppExe}') + '" --background') then
+      RaiseException('Could not enable Digital Detox at Windows sign-in.');
+    // Match the app's switch: clear a previous Windows Startup disable flag.
+    RegDeleteValue(HKCU, ApprovedKey, 'DigitalDetox');
+  end
+  else
+    RemoveStartupEntry;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+    RemoveStartupEntry;
 end;
