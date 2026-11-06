@@ -6,14 +6,15 @@ _Last updated: 2026-11-06_
 
 ## Current state
 
-- Latest release: **v2.8.2** (2026-11-02), published on GitHub. Version **2.8.3** is committed and pushed (main and tag v2.8.3); GitHub workflows generate the draft release. Publication is pending.
+- Latest release: **v2.8.3** (2026-11-06), published on GitHub, not sent to winget.
 - v2.8.1 and v2.8.2 fixed the lock screen when monitors wake up or are reconnected during a lock:
   the lock re-covers every monitor (checked 4 times a second, logged as `[session] monitors changed`)
   and taskbars are looked up again each time, so ones Windows recreates are hidden and restored too.
   Tested by the user, monitor switched off and on during a detox: works.
 
-- v2.8.3: installer now offers an optional "Start with Windows" checkbox (English/Italian), using the same per-user Run entry and `--background` as the tray menu. Upgrades read the current startup setting. Fixed the initial preview startup crash: initialize the startup task at wpSelectTasks, after {app} becomes available. Compilation and a silent runtime regression check passed (stopped in PrepareToInstall before installation). Interactive install/upgrade/sign-in checks remain.
-- Installer Italian tasks page now says "Opzioni aggiuntive" with the user-requested plain-language instruction; release 2.8.3 build, all 12 tests, Clippy and installer compilation passed locally.
+- v2.8.3: the installer offers an optional "Start with Windows" checkbox (English/Italian), using the
+  same per-user Run entry and `--background` as the tray menu; upgrades start from the current
+  setting. Tested by the user.
 - Tray visibility remains a Windows user preference: drag the icon out of the hidden-icons menu to keep it beside the clock.
 
 ## winget
