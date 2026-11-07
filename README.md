@@ -75,6 +75,7 @@ src/
   keyboard_hook.rs    blocking of system shortcuts
   single_instance.rs  only one copy of the app at a time
 assets/      logo and icon
+android/     preview of the Android app (see android/README.md)
 ```
 
 ## How to use

@@ -36,6 +36,15 @@ cargo clippy --release --locked -- -D warnings
 
 All three CI checks (build, test, clippy with no warnings) must pass before a commit.
 
+The Android preview lives in `android/` (see `android/README.md`). CI doesn't build it yet; when you
+change it, or `src/sync/`, also run:
+
+```bash
+cd android && ./gradlew.bat assembleDebug testDebugUnitTest lintDebug
+cargo test --manifest-path android/native/Cargo.toml --locked
+cargo clippy --manifest-path android/native/Cargo.toml --locked -- -D warnings
+```
+
 The app's log is `%LOCALAPPDATA%\DigitalDetox\digital-detox.log`, rewritten at every start; sync
 pairing lives in `%LOCALAPPDATA%\DigitalDetox\sync.json`. Read the log when the user reports a bug.
 
@@ -50,6 +59,8 @@ pairing lives in `%LOCALAPPDATA%\DigitalDetox\sync.json`. Read the log when the 
 - Keep `+crt-static` in `.cargo/config.toml`: without it the app fails to start on a fresh Windows.
 - Never change the `AppId` in `installer/DigitalDetox.iss`: it's how new installers upgrade old ones.
 - `release/` and `target/` aren't committed.
+- `src/sync/` is also compiled into the Android app (`android/native/build.rs` copies it). A change
+  to the protocol must stay compatible with the Android build, and be tested on both.
 - `ROADMAP.md` is private (listed in `.git/info/exclude`): never commit or publish it.
 
 ## Git

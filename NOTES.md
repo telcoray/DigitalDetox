@@ -19,7 +19,7 @@ _Last updated: 2026-11-07_
 
 ## Android preview
 
-- Local branch `android-preview`: Android 11+ ARM64 app in `android/`, targeted at HONOR 400 Lite / Android 16.
+- On `main` (merged from `android-preview`): Android 11+ ARM64 app in `android/`, targeted at HONOR 400 Lite / Android 16.
 - Native Rust adapter reuses the existing Windows Sync worker/protocol. Native Android UI,
   accessibility overlay, optional administrator uninstall friction, Detox/Pomodoro, Keystore pairing.
 - 4 Java schedule tests and 3 native protocol tests pass. APK builds, signature verifies, Android
