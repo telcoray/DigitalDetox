@@ -36,6 +36,7 @@ From the [Releases page](https://github.com/telcoray/DigitalDetox/releases), pic
 
 - **Installer** (`DigitalDetox-vX.Y.Z-setup-x64.exe`): adds Digital Detox to the Start menu, optionally to the desktop, and to Windows' list of installed apps for easy removal. No administrator rights needed.
 - **Portable** (`DigitalDetox-vX.Y.Z-win-x64.zip`): unzip it anywhere and run `DigitalDetox.exe`. Nothing else to install.
+- **Android preview** (`DigitalDetox-vX.Y.Z-android-arm64.apk`): for Android 11 or later. Open the file on your phone and allow installing from that source when Android asks; [android/README.md](android/README.md) explains the permissions it needs. It syncs with the Windows app like a second PC.
 
 Since the files aren't code-signed, Windows SmartScreen may warn you the first time: click **More info → Run anyway**.
 
