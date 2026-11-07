@@ -6,7 +6,8 @@ _Last updated: 2026-11-07_
 
 ## Current state
 
-- Latest release: **v2.8.3** (2026-11-06), published on GitHub, not sent to winget.
+- Latest release: **v2.8.4** (2026-11-07), published on GitHub with installer, zip and the first
+  signed Android APK; not sent to winget.
 - v2.8.1 and v2.8.2 fixed the lock screen when monitors wake up or are reconnected during a lock:
   the lock re-covers every monitor (checked 4 times a second, logged as `[session] monitors changed`)
   and taskbars are looked up again each time, so ones Windows recreates are hidden and restored too.
@@ -29,7 +30,7 @@ _Last updated: 2026-11-07_
   unlock after the 5-minute break and start the next focus round.
 - APK 0.1.0-alpha2 brings the Windows-style Detox, Pomodoro and Sync tabs to Android, with duration presets, a focus timer and a separate Settings menu. Android build, unit tests and Lint pass. User reviewed all three tabs on the HONOR and confirmed the PC remains paired and online after upgrading.
 - F-Droid preparation remains open.
-- From the next release the APK ships in every GitHub release, with the Windows version number
+- From v2.8.4 the APK ships in every GitHub release, with the Windows version number
   (user's choice), signed with a release key the user creates and stores as repository secrets
   (see android/README.md). The secrets are set; a manual Release run on 2026-11-07 built and
   signed the APK (certificate SHA-256 bb95061f…dd00). Switching the phone from the debug build to
