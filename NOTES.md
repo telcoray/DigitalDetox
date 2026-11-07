@@ -31,8 +31,9 @@ _Last updated: 2026-11-07_
 - F-Droid preparation remains open.
 - From the next release the APK ships in every GitHub release, with the Windows version number
   (user's choice), signed with a release key the user creates and stores as repository secrets
-  (see android/README.md). Until the secrets exist the Release workflow fails. Switching the phone
-  from the debug build to the signed one needs one uninstall and a new pairing.
+  (see android/README.md). The secrets are set; a manual Release run on 2026-11-07 built and
+  signed the APK (certificate SHA-256 bb95061f…dd00). Switching the phone from the debug build to
+  the signed one needs one uninstall and a new pairing.
 
 ## winget
 
