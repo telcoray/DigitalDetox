@@ -1,0 +1,31 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'org.telcoray.digitaldetox'
+    compileSdk 36
+    ndkVersion '28.2.13676358'
+    defaultConfig { applicationId 'org.telcoray.digitaldetox'; minSdk 30; targetSdk 36; versionCode 2; versionName '0.1.0-alpha2' }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    buildTypes { release { minifyEnabled false } }
+}
+
+// Build the native Sync worker from the same sources as Windows; no prebuilt libraries in Git.
+def rustBuild = tasks.register('compileRustSync', Exec) {
+    workingDir '../native'
+    commandLine 'cargo', 'build', '--locked', '--release', '--target', 'aarch64-linux-android'
+    inputs.files(fileTree('../native/src'), file('../native/build.rs'), file('../native/Cargo.toml'), file('../native/Cargo.lock'), fileTree('../../src/sync'))
+    outputs.file('../native/target/aarch64-linux-android/release/libdigital_detox_android.so')
+    doFirst {
+        def windows = System.getProperty('os.name').toLowerCase().contains('windows')
+        def host = windows ? 'windows-x86_64' : System.getProperty('os.name').toLowerCase().contains('mac') ? 'darwin-x86_64' : 'linux-x86_64'
+        def compiler = new File(android.sdkDirectory, "ndk/${android.ndkVersion}/toolchains/llvm/prebuilt/${host}/bin/aarch64-linux-android28-clang" + (windows ? '.cmd' : ''))
+        environment 'CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER', compiler.absolutePath
+    }
+}
+def copyRust = tasks.register('copyRustSync', Copy) {
+    dependsOn rustBuild
+    from '../native/target/aarch64-linux-android/release/libdigital_detox_android.so'
+    into 'src/main/jniLibs/arm64-v8a'
+}
+tasks.named('preBuild').configure { dependsOn copyRust }
+
+ dependencies { testImplementation 'junit:junit:4.13.2'; testImplementation 'org.json:json:20240303' }

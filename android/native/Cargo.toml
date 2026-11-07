@@ -1,0 +1,16 @@
+[package]
+name = "digital-detox-android"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21.1"
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+hmac = "0.12.1"
+sha2 = "0.10.9"
+spake2 = "0.4.0"
+getrandom = "0.2.17"

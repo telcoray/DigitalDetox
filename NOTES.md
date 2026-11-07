@@ -2,7 +2,7 @@
 
 Shared working notes for the agents on this project. Update at the end of each session; keep it short.
 
-_Last updated: 2026-11-06_
+_Last updated: 2026-11-07_
 
 ## Current state
 
@@ -16,6 +16,19 @@ _Last updated: 2026-11-06_
   same per-user Run entry and `--background` as the tray menu; upgrades start from the current
   setting. Tested by the user.
 - Tray visibility remains a Windows user preference: drag the icon out of the hidden-icons menu to keep it beside the clock.
+
+## Android preview
+
+- Local branch `android-preview`: Android 11+ ARM64 app in `android/`, targeted at HONOR 400 Lite / Android 16.
+- Native Rust adapter reuses the existing Windows Sync worker/protocol. Native Android UI,
+  accessibility overlay, optional administrator uninstall friction, Detox/Pomodoro, Keystore pairing.
+- 4 Java schedule tests and 3 native protocol tests pass. APK builds, signature verifies, Android
+  Lint has no errors; native library uses 16 KB alignment. User verified a one-minute Detox and automatic unlock on the HONOR 400 Lite (Android 16).
+  The phone appears online in Windows Sync after pairing. Starting Detox from either device locks both.
+  User also verified synchronized Pomodoro from the phone: both devices lock after 25 minutes,
+  unlock after the 5-minute break and start the next focus round.
+- APK 0.1.0-alpha2 brings the Windows-style Detox, Pomodoro and Sync tabs to Android, with duration presets, a focus timer and a separate Settings menu. Android build, unit tests and Lint pass. User reviewed all three tabs on the HONOR and confirmed the PC remains paired and online after upgrading.
+- F-Droid preparation remains open.
 
 ## winget
 
