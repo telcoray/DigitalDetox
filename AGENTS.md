@@ -75,8 +75,10 @@ pairing lives in `%LOCALAPPDATA%\DigitalDetox\sync.json`. Read the log when the 
 ## Releases
 
 1. Commit `Version X.Y.Z`, push `main`.
-2. Push the tag `vX.Y.Z`: the Release workflow builds the zip and the installer and creates a
-   **draft** release (it fails if the tag doesn't match `Cargo.toml`).
+2. Push the tag `vX.Y.Z`: the Release workflow builds the zip, the installer and the signed Android
+   APK (same version), and creates a **draft** release with all three, only if every build worked
+   (it fails if the tag doesn't match `Cargo.toml`). Never touch the Android signing secrets or
+   key: the user manages them.
 3. Write the release notes (English, short, what changed for the user) and publish only when the
    user says so.
 

@@ -29,6 +29,10 @@ _Last updated: 2026-11-07_
   unlock after the 5-minute break and start the next focus round.
 - APK 0.1.0-alpha2 brings the Windows-style Detox, Pomodoro and Sync tabs to Android, with duration presets, a focus timer and a separate Settings menu. Android build, unit tests and Lint pass. User reviewed all three tabs on the HONOR and confirmed the PC remains paired and online after upgrading.
 - F-Droid preparation remains open.
+- From the next release the APK ships in every GitHub release, with the Windows version number
+  (user's choice), signed with a release key the user creates and stores as repository secrets
+  (see android/README.md). Until the secrets exist the Release workflow fails. Switching the phone
+  from the debug build to the signed one needs one uninstall and a new pairing.
 
 ## winget
 

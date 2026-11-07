@@ -27,6 +27,19 @@ adapters for configuration, broadcast addresses and event delivery. The pairing 
 and wire format are not reimplemented: SPAKE2, HMAC-SHA256, UDP 47821 and unsigned device IDs
 remain compatible. Group keys are encrypted using Android Keystore before persistence.
 
+## Versions and signing
+
+The APK has the same version as the Windows app, read from the root `Cargo.toml`
+(version code: 2.8.3 becomes 20803), and every GitHub release ships both.
+
+Release builds are signed with the project's release key. Android only installs an update over
+an app signed with the same key, so that key must never be lost or changed. It isn't in the
+repository: the Release workflow reads it from the repository secrets `ANDROID_KEYSTORE_BASE64`
+(the `.jks` file in base64), `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`, and passes it to
+Gradle through `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`.
+Without these variables `assembleRelease` gives an unsigned APK; debug builds are signed with the
+local debug key and can't be installed over a release build (or the other way round).
+
 ## Setup and consent
 
 The first screen explains the accessibility permission before opening Android settings.

@@ -1,11 +1,31 @@
 plugins { id 'com.android.application' }
+// Same version as the Windows app, from the root Cargo.toml: every release ships both.
+// The version code must grow with each release: 2.8.3 becomes 20803.
+def appVersion = (file('../../Cargo.toml').text =~ /(?m)^version\s*=\s*"(\d+)\.(\d+)\.(\d+)"/)[0]
+def appVersionName = "${appVersion[1]}.${appVersion[2]}.${appVersion[3]}"
+def appVersionCode = appVersion[1].toInteger() * 10000 + appVersion[2].toInteger() * 100 + appVersion[3].toInteger()
+
+// The release key never goes in the repository: the Release workflow passes it through these
+// variables, from the repository secrets. Without them only debug builds can be made.
+def keystore = System.getenv('ANDROID_KEYSTORE_FILE')
+
 android {
     namespace 'org.telcoray.digitaldetox'
     compileSdk 36
     ndkVersion '28.2.13676358'
-    defaultConfig { applicationId 'org.telcoray.digitaldetox'; minSdk 30; targetSdk 36; versionCode 2; versionName '0.1.0-alpha2' }
+    defaultConfig { applicationId 'org.telcoray.digitaldetox'; minSdk 30; targetSdk 36; versionCode appVersionCode; versionName appVersionName }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-    buildTypes { release { minifyEnabled false } }
+    signingConfigs {
+        release {
+            if (keystore) {
+                storeFile file(keystore)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+    buildTypes { release { minifyEnabled false; signingConfig keystore ? signingConfigs.release : null } }
 }
 
 // Build the native Sync worker from the same sources as Windows; no prebuilt libraries in Git.

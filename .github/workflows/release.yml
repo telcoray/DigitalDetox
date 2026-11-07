@@ -1,5 +1,5 @@
-# Pushing a tag like v2.4.0 builds the release zip and the installer, and creates a *draft*
-# GitHub release with both. The notes are then written and the release is published by hand,
+# Pushing a tag like v2.4.0 builds the release zip, the installer and the Android APK, and
+# creates a *draft* GitHub release with all three. The notes are then written and the release is published by hand,
 # after a final check.
 #
 # Run it by hand (Actions → Release → Run workflow) to only build the files, as an artifact,
@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -71,16 +71,82 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: release-files
+          name: windows-files
           path: dist/
 
+  # The APK takes its version from the same Cargo.toml (see android/app/build.gradle), and is
+  # signed with the release key kept in the repository secrets: an update installs over the
+  # previous version only if both are signed with the same key.
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: android/native
+
+      # The runner has the Android SDK, but not necessarily this NDK version
+      - name: Install the NDK
+        run: echo "y" | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null
+
+      - name: Test the Sync bridge
+        run: cargo test --manifest-path native/Cargo.toml --locked
+
+      - name: Build and sign
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::The ANDROID_KEYSTORE_BASE64 secret is missing: the APK can't be signed"
+            exit 1
+          fi
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_FILE"
+          ./gradlew assembleRelease testReleaseUnitTest --no-daemon
+          rm "$ANDROID_KEYSTORE_FILE"
+
+      - name: Package
+        run: |
+          version=$(grep -m1 '^version' ../Cargo.toml | cut -d '"' -f2)
+          mkdir -p ../dist
+          cp app/build/outputs/apk/release/app-release.apk "../dist/DigitalDetox-v$version-android-arm64.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-files
+          path: dist/
+
+  # Only once both builds have worked, so a release never lacks one of the files
+  draft:
+    if: github.ref_type == 'tag'
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
       - name: Create draft release
-        if: github.ref_type == 'tag'
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME "${{ steps.installer.outputs.setup }}" "${{ steps.package.outputs.zip }}" `
-            --draft --verify-tag `
-            --title "Digital Detox $env:GITHUB_REF_NAME" `
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "Digital Detox $GITHUB_REF_NAME" \
             --notes "Release notes to be written before publishing."
