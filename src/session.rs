@@ -41,6 +41,8 @@ pub enum SessionKind {
 /// Ctrl+Shift+X must be pressed this many times, each within `EMERGENCY_WINDOW` of the previous one
 const EMERGENCY_PRESSES: u32 = 3;
 const EMERGENCY_WINDOW: Duration = Duration::from_secs(2);
+/// How long "Detox Complete!" stays before the lock screen closes
+const COMPLETE_FOR: Duration = Duration::from_millis(1500);
 
 pub struct LockSession {
     window: LockWindow,
@@ -59,7 +61,7 @@ pub struct LockSession {
 
 impl LockSession {
     /// Shows the lock screen for `duration`. `on_end` is called when the session should be
-    /// closed: 5 seconds after the timer runs out, or after a confirmed emergency exit.
+    /// closed: shortly after the timer runs out (`COMPLETE_FOR`), or after a confirmed emergency exit.
     pub fn start(duration: Duration, kind: SessionKind, on_end: impl Fn() + 'static) -> Result<Self, slint::PlatformError> {
         let on_end: Rc<dyn Fn()> = Rc::new(on_end);
         // Instant is a monotonic clock: unaffected by clock changes or daylight saving time
@@ -223,9 +225,9 @@ fn complete_detox(window: &LockWindow, covers: &[CoverWindow], on_end: Rc<dyn Fn
     power::wake_monitors();
     brightness::restore();
     apply_shade(window, covers, Shade { level: 0.0, fade: Duration::from_millis(600) });
-    // Leave "Detox Complete!" on screen for 5 seconds (monitors can take a moment to wake up),
-    // then end the session
-    Timer::single_shot(Duration::from_secs(5), move || on_end());
+    // Leave "Detox Complete!" on screen just long enough to be seen, then end the session.
+    // Longer felt like waiting for the PC (monitors that were off take a few seconds more).
+    Timer::single_shot(COMPLETE_FOR, move || on_end());
 }
 
 /// Dims, darkens or brightens the lock screen and every cover window together
