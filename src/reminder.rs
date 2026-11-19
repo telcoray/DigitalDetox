@@ -65,6 +65,13 @@ impl Reminder {
     /// Shows the card in the corner, without taking the focus
     fn place(window: ReminderWindow, height: f32) -> Result<Self, slint::PlatformError> {
         crate::dpi::install(window.window());
+        // Only the card goes: a countdown keeps going, and what it leads to still happens
+        let weak = window.as_weak();
+        window.on_hide_clicked(move || {
+            if let Some(window) = weak.upgrade() {
+                let _ = window.hide();
+            }
+        });
 
         let previous = unsafe { GetForegroundWindow() };
         // A first guess, so the window is created on the primary monitor and not elsewhere

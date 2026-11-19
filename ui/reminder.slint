@@ -42,6 +42,8 @@ export component ReminderWindow inherits Window {
     callback dismissed();
     callback action();
     callback cancelled();
+    // The arrow in the corner: the card goes away, whatever it counts down still happens
+    callback hide-clicked();
 
     title: "Digital Detox";
     icon: @image-url("../assets/logo.svg");
@@ -110,6 +112,29 @@ export component ReminderWindow inherits Window {
                     text: root.cancel-text;
                     clicked => { root.cancelled(); }
                 }
+            }
+        }
+
+        // A downward arrow in the top-right corner, to hide the card
+        Rectangle {
+            x: parent.width - self.width - 6px;
+            y: 6px;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            background: hide-touch.has-hover ? Theme.outline : transparent;
+
+            Path {
+                width: 12px;
+                height: 6px;
+                commands: "M 0 0 L 6 5 L 12 0";
+                stroke: hide-touch.has-hover ? Theme.title : Theme.muted;
+                stroke-width: 1.5px;
+            }
+
+            hide-touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.hide-clicked(); }
             }
         }
     }
