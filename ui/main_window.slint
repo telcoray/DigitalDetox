@@ -179,13 +179,13 @@ component RoundDots inherits HorizontalLayout {
         alignment: center;
         padding-top: 2px;
 
+        // Only filled shapes: the software renderer draws thin round borders (rings) with an
+        // uneven thickness. Done rounds and the current one are red dots, the rest grey.
         Rectangle {
-            width: 12px;
-            height: 12px;
-            border-radius: 6px;
-            border-width: 1px;
-            border-color: root.running && index + 1 <= root.current ? Theme.tomato : Theme.outline-hover;
-            background: root.running && index + 1 < root.current ? Theme.tomato : transparent;
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: root.running && index + 1 <= root.current ? Theme.tomato : Theme.outline-hover;
         }
     }
 

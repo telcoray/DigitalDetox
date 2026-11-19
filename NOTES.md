@@ -50,6 +50,8 @@ _Last updated: 2026-11-19_
   so older versions interoperate); each device follows the median of all clocks, its own
   included. Windows uses it through `time_format::now_ms`, Android through `Session.now()`
   (offset returned by the native `poll`). User tested on all four: almost no difference left.
+- Pomodoro round dots are filled circles (red up to the current round, grey after): the
+  software renderer draws thin round borders with an uneven thickness, so no rings anywhere.
 - "Start on its own each day" switch is now on the Pomodoro tab's first screen and in the tray menu.
 - Tray visibility remains a Windows user preference: drag the icon out of the hidden-icons menu to keep it beside the clock.
 
