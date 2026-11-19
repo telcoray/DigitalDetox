@@ -1,20 +1,66 @@
-// Small card in the bottom-right corner, a minute before a Pomodoro break locks the screen.
-// Clicking it closes it.
+// Small card in the bottom-right corner: a minute before a Pomodoro break locks the screen
+// (clicking it closes it), or when the Pomodoro is about to start by itself (with two buttons).
 
 import { Label, Theme } from "common.slint";
 
+// A compact button for the card
+component CardButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary;
+    callback clicked();
+
+    height: 32px;
+    border-radius: 8px;
+    background: root.primary
+        ? (touch.pressed ? Theme.tomato-pressed : touch.has-hover ? Theme.tomato-hover : Theme.tomato)
+        : (touch.has-hover ? Theme.outline : transparent);
+    border-width: root.primary ? 0px : 1px;
+    border-color: Theme.outline;
+
+    Label {
+        y: -1px;
+        height: parent.height;
+        text: root.text;
+        font-size: 13px;
+        font-weight: 600;
+        color: Theme.title;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
 export component ReminderWindow inherits Window {
+    in property <string> heading: "Break in 1 minute";
     in property <string> message;
+    // With these set, the card shows two buttons and clicking elsewhere on it does nothing
+    in property <string> action-text;
+    in property <string> cancel-text;
     callback dismissed();
+    callback action();
+    callback cancelled();
 
     title: "Digital Detox";
     icon: @image-url("../assets/logo.svg");
     // Whole pixels at 100/125/150/175% display scaling, like the main window
     width: 340px;
-    height: 88px;
+    height: root.action-text == "" ? 88px : 132px;
     no-frame: true;
     always-on-top: true;
     background: Theme.tomato;
+
+    // Behind the content, so the buttons get their own clicks
+    TouchArea {
+        mouse-cursor: root.action-text == "" ? pointer : default;
+        clicked => {
+            if root.action-text == "" {
+                root.dismissed();
+            }
+        }
+    }
 
     // 1px tomato-red border around the dark card, as in the Pomodoro tab
     Rectangle {
@@ -27,11 +73,13 @@ export component ReminderWindow inherits Window {
         VerticalLayout {
             padding-left: 18px;
             padding-right: 18px;
+            padding-top: 14px;
+            padding-bottom: 14px;
             alignment: center;
             spacing: 4px;
 
             Label {
-                text: "Break in 1 minute";
+                text: root.heading;
                 font-size: 16px;
                 font-weight: 600;
                 color: Theme.title;
@@ -45,11 +93,24 @@ export component ReminderWindow inherits Window {
                 horizontal-alignment: left;
                 wrap: word-wrap;
             }
-        }
-    }
 
-    TouchArea {
-        mouse-cursor: pointer;
-        clicked => { root.dismissed(); }
+            if root.action-text != "": HorizontalLayout {
+                padding-top: 8px;
+                spacing: 8px;
+
+                CardButton {
+                    horizontal-stretch: 1;
+                    text: root.action-text;
+                    primary: true;
+                    clicked => { root.action(); }
+                }
+
+                CardButton {
+                    horizontal-stretch: 1;
+                    text: root.cancel-text;
+                    clicked => { root.cancelled(); }
+                }
+            }
+        }
     }
 }

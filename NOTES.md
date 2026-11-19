@@ -16,6 +16,11 @@ _Last updated: 2026-11-07_
 - v2.8.3: the installer offers an optional "Start with Windows" checkbox (English/Italian), using the
   same per-user Run entry and `--background` as the tray menu; upgrades start from the current
   setting. Tested by the user.
+- "Start on its own each day" (Pomodoro tab, off by default, saved in settings.json): on the first
+  use of each day (day starts at 5:00; input in the last minute, past the Windows lock screen) a
+  corner card counts down 30 s, then starts a Pomodoro on this PC only (user's choice: not sent
+  to paired devices; a paired device's Idle doesn't stop it). User tested the card and the
+  automatic start; not yet checked that laptop and phone stay untouched.
 - Tray visibility remains a Windows user preference: drag the icon out of the hidden-icons menu to keep it beside the clock.
 
 ## Android preview

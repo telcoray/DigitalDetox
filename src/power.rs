@@ -9,6 +9,7 @@ use windows::Win32::System::Power::{
     ES_CONTINUOUS, ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED, GetPwrCapabilities, SYSTEM_POWER_CAPABILITIES,
     SetThreadExecutionState,
 };
+use windows::Win32::System::StationsAndDesktops::{CloseDesktop, DESKTOP_CONTROL_FLAGS, DESKTOP_READOBJECTS, OpenInputDesktop};
 use windows::Win32::System::SystemInformation::GetTickCount;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetLastInputInfo, INPUT, INPUT_0, INPUT_MOUSE, LASTINPUTINFO, MOUSEEVENTF_MOVE, MOUSEINPUT, SendInput,
@@ -32,6 +33,20 @@ pub fn idle_time() -> Duration {
             Duration::from_millis(GetTickCount().wrapping_sub(info.dwTime) as u64)
         } else {
             Duration::ZERO
+        }
+    }
+}
+
+/// False while Windows shows its lock screen (or the Ctrl+Alt+Del screen): then the desktop
+/// that receives the input belongs to the system, and this app can't open it
+pub fn desktop_unlocked() -> bool {
+    unsafe {
+        match OpenInputDesktop(DESKTOP_CONTROL_FLAGS(0), false, DESKTOP_READOBJECTS) {
+            Ok(desktop) => {
+                let _ = CloseDesktop(desktop);
+                true
+            }
+            Err(_) => false,
         }
     }
 }

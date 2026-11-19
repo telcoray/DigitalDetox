@@ -1,6 +1,6 @@
 //! The reminder a minute before a Pomodoro break: a small card in the bottom-right corner of the
 //! primary monitor, just above the taskbar. It must not take the focus away from whatever you're
-//! typing in.
+//! typing in. The same card, with two buttons, asks before the Pomodoro starts by itself.
 
 use std::time::Duration;
 
@@ -18,8 +18,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use crate::ReminderWindow;
 use crate::power::hwnd_of;
 
-/// Same size as in reminder.slint, in logical pixels
+/// Same sizes as in reminder.slint, in logical pixels: width, and height without and with buttons
 const SIZE: (f32, f32) = (340.0, 88.0);
+const HEIGHT_WITH_BUTTONS: f32 = 132.0;
 /// Distance from the edges of the screen (and from the taskbar), in logical pixels
 const MARGIN: f32 = 12.0;
 
@@ -27,6 +28,7 @@ const MARGIN: f32 = 12.0;
 pub struct Reminder(ReminderWindow);
 
 impl Reminder {
+    /// The break reminder: clicking it closes it
     pub fn show(message: &str) -> Result<Self, slint::PlatformError> {
         let window = ReminderWindow::new()?;
         window.set_message(message.into());
@@ -36,7 +38,32 @@ impl Reminder {
                 let _ = window.hide();
             }
         });
+        Self::place(window, SIZE.1)
+    }
 
+    /// A question with two buttons. The card stays until this value is dropped.
+    pub fn ask(
+        heading: &str,
+        message: &str,
+        (action, on_action): (&str, impl Fn() + 'static),
+        (cancel, on_cancel): (&str, impl Fn() + 'static),
+    ) -> Result<Self, slint::PlatformError> {
+        let window = ReminderWindow::new()?;
+        window.set_heading(heading.into());
+        window.set_message(message.into());
+        window.set_action_text(action.into());
+        window.set_cancel_text(cancel.into());
+        window.on_action(on_action);
+        window.on_cancelled(on_cancel);
+        Self::place(window, HEIGHT_WITH_BUTTONS)
+    }
+
+    pub fn set_message(&self, message: &str) {
+        self.0.set_message(message.into());
+    }
+
+    /// Shows the card in the corner, without taking the focus
+    fn place(window: ReminderWindow, height: f32) -> Result<Self, slint::PlatformError> {
         crate::dpi::install(window.window());
 
         let previous = unsafe { GetForegroundWindow() };
@@ -44,7 +71,7 @@ impl Reminder {
         if let Some(area) = work_area() {
             let scale = unsafe { GetDpiForSystem() } as f32 / 96.0;
             let x = area.right - ((SIZE.0 + MARGIN) * scale).round() as i32;
-            let y = area.bottom - ((SIZE.1 + MARGIN) * scale).round() as i32;
+            let y = area.bottom - ((height + MARGIN) * scale).round() as i32;
             window.window().set_position(slint::PhysicalPosition::new(x, y));
         }
         window.show()?;

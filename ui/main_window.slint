@@ -199,11 +199,12 @@ component RoundDots inherits HorizontalLayout {
 // On/off switch
 component Switch inherits Rectangle {
     in property <bool> checked;
+    in property <brush> on-color: Theme.accent;
 
     width: 44px;
     height: 24px;
     border-radius: 12px;
-    background: root.checked ? Theme.accent : Theme.outline;
+    background: root.checked ? root.on-color : Theme.outline;
 
     Rectangle {
         width: 18px;
@@ -237,6 +238,8 @@ export component MainWindow inherits Window {
     in property <string> pomodoro-time;
     in property <string> pomodoro-caption;
     in property <string> pomodoro-info;
+    // "Start on its own each day" (see auto_pomodoro.rs)
+    in property <bool> auto-pomodoro;
 
     // Syncing with paired devices, kept up to date by Rust (sharing.rs)
     in property <bool> sync-paired;        // at least one paired device
@@ -259,6 +262,7 @@ export component MainWindow inherits Window {
     callback pomodoro-clicked();
     // Pauses the running Pomodoro, or resumes it
     callback pause-clicked();
+    callback auto-pomodoro-toggled();
     callback sync-toggled();
     callback pair-clicked();
     callback enter-code-clicked();
@@ -709,6 +713,48 @@ export component MainWindow inherits Window {
                 text: line;
                 font-size: 15px;
                 color: Theme.muted;
+                horizontal-alignment: left;
+            }
+
+            // Same row as "Sync with paired devices" in the Sync tab
+            Rectangle {
+                height: 44px;
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+                    Label {
+                        text: "Start on its own each day";
+                        font-size: 16px;
+                        color: Theme.title;
+                        horizontal-alignment: left;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        Switch {
+                            checked: root.auto-pomodoro;
+                            on-color: Theme.tomato;
+                        }
+                    }
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.auto-pomodoro-toggled(); }
+                }
+            }
+
+            for line in [
+                "When you first use the PC each day, it",
+                "starts after 30 seconds, on this PC only",
+            ]: Label {
+                text: line;
+                font-size: 14px;
+                color: Theme.faint;
                 horizontal-alignment: left;
             }
         }
