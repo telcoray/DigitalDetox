@@ -2,12 +2,14 @@
 
 Shared working notes for the agents on this project. Update at the end of each session; keep it short.
 
-_Last updated: 2026-11-19_
+_Last updated: 2026-11-20_
 
 ## Current state
 
-- Latest release: **v2.8.4** (2026-11-07), published on GitHub with installer, zip and the first
-  signed Android APK; not sent to winget.
+- Latest release: **v2.9.0** (2026-11-20), published on GitHub with installer, zip and signed APK,
+  and sent to winget (PR microsoft/winget-pkgs#484485, waiting for review). It contains everything
+  below. The user's phone and tablet still run the debug APK: moving them to the signed one needs
+  an uninstall and a new pairing.
 - v2.8.1 and v2.8.2 fixed the lock screen when monitors wake up or are reconnected during a lock:
   the lock re-covers every monitor (checked 4 times a second, logged as `[session] monitors changed`)
   and taskbars are looked up again each time, so ones Windows recreates are hidden and restored too.
@@ -21,7 +23,7 @@ _Last updated: 2026-11-19_
   corner card counts down 30 s, then starts a Pomodoro on this PC only (user's choice: not sent
   to paired devices; a paired device's Idle doesn't stop it). User tested the card and the
   automatic start; not yet checked that laptop and phone stay untouched.
-- New Schedule tab (tabs are now 0 Detox, 1 Pomodoro, 2 Schedule, 3 Sync), not yet released:
+- New Schedule tab (tabs are now 0 Detox, 1 Pomodoro, 2 Schedule, 3 Sync), since 2.9.0:
   - set times (schedule.rs): up to 4 detoxes, e.g. 13:00 for 30 min, each on chosen weekdays
     (bitmask in settings.json, Monday = bit 0; older entries default to every day); a corner card counts
     down the last minute ("Start now" / "Skip"), then locks. This PC only, skipped during a
@@ -33,7 +35,7 @@ _Last updated: 2026-11-19_
   - Only one corner card at a time (`card_shown` in main.rs); a set time pushes the others away.
   - Tested by the user: set times (with Start now, Skip, Edit, days) and the card's hide arrow.
 - Pomodoro plan ("Change times" in the Pomodoro tab, plan_editor.rs; saved as `pomodoro` in
-  settings.json), not yet released: focus / short / long break minutes, rounds before the long
+  settings.json), since 2.9.0: focus / short / long break minutes, rounds before the long
   break, and total rounds (0 = until stopped; after the last round's break it stops and publishes
   Idle). User's choice: the plan travels with the shared Pomodoro (`plan` field in
   `Shared::Pomodoro`, serde default = 25/5/15 × 4, so older versions interoperate but ignore it).
@@ -75,11 +77,15 @@ _Last updated: 2026-11-19_
 
 ## winget
 
-- Package `telcoray.DigitalDetox`. The last version on winget is **2.6.1**.
+- Package `telcoray.DigitalDetox`. Last version sent: **2.9.0** (2026-11-20, PR #484485 on
+  microsoft/winget-pkgs, waiting for review); before that 2.6.1.
 - From 2.7.0 on, the user chose not to send every release to winget, to avoid flooding the
   reviewers. The `winget` workflow is disabled in GitHub Actions; releases are published without it.
 - To catch up: re-enable the workflow, or run it by hand with the latest tag (Actions → winget →
   Run workflow). It needs the `WINGET_TOKEN` secret, already set. Only when the user asks.
+- For 2.9.0 it was enabled, run by hand and disabled again. If it fails with "The forked
+  repository could not be synced", the user clicks Sync fork on github.com/telcoray/winget-pkgs
+  (the local gh token lacks the `workflow` scope that syncing needs), then it's run again.
 
 ## Decisions
 
