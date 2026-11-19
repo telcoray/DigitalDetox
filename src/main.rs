@@ -53,6 +53,7 @@ pub enum Action {
     Start(u64),
     TogglePomodoro,
     TogglePause,
+    ToggleAutoPomodoro,
     ToggleSync,
     ToggleAutostart,
     Quit,
@@ -138,7 +139,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let background = std::env::args().any(|arg| arg == autostart::BACKGROUND_FLAG);
 
     let window = MainWindow::new()?;
-    let tray = tray::Tray::new(autostart::is_enabled())
+    let settings = settings::Settings::load();
+    let tray = tray::Tray::new(autostart::is_enabled(), settings.auto_pomodoro)
         .inspect_err(|e| log!("Could not create the tray icon: {e}"))
         .ok();
     setup_main_window(&window, tray.is_some());
@@ -158,7 +160,7 @@ fn main() -> Result<(), slint::PlatformError> {
         session: RefCell::default(),
         pomodoro: RefCell::default(),
         sharing: sharing::Sharing::load(),
-        settings: RefCell::new(settings::Settings::load()),
+        settings: RefCell::new(settings),
         offer: RefCell::default(),
         break_reminder: break_reminder::State::default(),
         schedule: schedule::State::default(),
@@ -207,6 +209,7 @@ fn handle(app: &Rc<App>, action: Action) {
         Action::Start(minutes) => start_detox(app, Duration::from_secs(minutes * 60)),
         Action::TogglePomodoro => toggle_pomodoro(app),
         Action::TogglePause => toggle_pause(app),
+        Action::ToggleAutoPomodoro => auto_pomodoro::toggle(app),
         Action::ToggleSync => sharing::toggle(app),
         Action::ToggleAutostart => toggle_autostart(app),
         Action::Quit => {

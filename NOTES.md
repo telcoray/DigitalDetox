@@ -32,6 +32,7 @@ _Last updated: 2026-11-19_
   - User's choices (2026-11-19): 90 → 10 min, 1-minute warning then lock, this PC only, own tab.
   - Only one corner card at a time (`card_shown` in main.rs); a set time pushes the others away.
   - Not yet tested by the user.
+- "Start on its own each day" switch is now on the Pomodoro tab's first screen and in the tray menu.
 - Tray visibility remains a Windows user preference: drag the icon out of the hidden-icons menu to keep it beside the clock.
 
 ## Android preview

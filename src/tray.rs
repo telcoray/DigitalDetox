@@ -1,8 +1,8 @@
 //! Icon in the notification area (system tray), next to the clock.
 //!
 //! Left click opens the main window; right click shows a menu to open it, start a detox right
-//! away, start or stop the Pomodoro mode, turn syncing with paired devices and "Start with
-//! Windows" on or off, or quit. While a
+//! away, start or stop the Pomodoro mode, turn its daily start, syncing with paired devices and
+//! "Start with Windows" on or off, or quit. While a
 //! detox (or a Pomodoro break) is running the menu is disabled, so it can't be used to leave it.
 
 use std::cell::{Cell, RefCell};
@@ -22,6 +22,7 @@ pub struct Tray {
     start: Submenu,
     pomodoro: MenuItem,
     pause: MenuItem,
+    auto_pomodoro: CheckMenuItem,
     sync: CheckMenuItem,
     autostart: CheckMenuItem,
     quit: MenuItem,
@@ -33,8 +34,9 @@ pub struct Tray {
 }
 
 impl Tray {
-    /// `autostart`: whether "Start with Windows" is currently on, for its check mark
-    pub fn new(autostart: bool) -> Result<Self, Box<dyn std::error::Error>> {
+    /// `autostart` and `auto_pomodoro`: whether "Start with Windows" and the Pomodoro's daily
+    /// start are currently on, for their check marks
+    pub fn new(autostart: bool, auto_pomodoro: bool) -> Result<Self, Box<dyn std::error::Error>> {
         let open = MenuItem::with_id("open", "Open Digital Detox", true, None);
         let start = Submenu::new("Start detox", true);
         for minutes in PRESETS {
@@ -42,11 +44,13 @@ impl Tray {
         }
         let pomodoro = MenuItem::with_id("pomodoro", "Start Pomodoro", true, None);
         let pause = MenuItem::with_id("pause", "Pause Pomodoro", false, None);
+        let auto_pomodoro =
+            CheckMenuItem::with_id("auto-pomodoro", "Start Pomodoro on its own each day", true, auto_pomodoro, None);
         let sync = CheckMenuItem::with_id("sync", "Sync with paired devices", false, false, None);
         let autostart = CheckMenuItem::with_id("autostart", "Start with Windows", true, autostart, None);
         let quit = MenuItem::with_id("quit", "Quit", true, None);
         let separator = PredefinedMenuItem::separator();
-        let menu = Menu::with_items(&[&open, &start, &pomodoro, &pause, &separator, &sync, &autostart, &quit])?;
+        let menu = Menu::with_items(&[&open, &start, &pomodoro, &pause, &auto_pomodoro, &separator, &sync, &autostart, &quit])?;
 
         let icon = TrayIconBuilder::new()
             // The app icon embedded in the .exe by build.rs (resource ID 1)
@@ -68,6 +72,7 @@ impl Tray {
                 "open" => Action::Open,
                 "pomodoro" => Action::TogglePomodoro,
                 "pause" => Action::TogglePause,
+                "auto-pomodoro" => Action::ToggleAutoPomodoro,
                 "sync" => Action::ToggleSync,
                 "autostart" => Action::ToggleAutostart,
                 "quit" => Action::Quit,
@@ -85,6 +90,7 @@ impl Tray {
             start,
             pomodoro,
             pause,
+            auto_pomodoro,
             sync,
             autostart,
             quit,
@@ -116,6 +122,7 @@ impl Tray {
         self.start.set_enabled(!detox && !self.pomodoro_running.get());
         self.pomodoro.set_enabled(!detox);
         self.pause.set_enabled(!detox && self.pomodoro_running.get());
+        self.auto_pomodoro.set_enabled(!detox);
         self.sync.set_enabled(!detox && self.paired.get());
         self.autostart.set_enabled(!detox);
         self.quit.set_enabled(!detox);
@@ -146,5 +153,10 @@ impl Tray {
     /// actual setting, also when changing it failed
     pub fn set_autostart(&self, enabled: bool) {
         self.autostart.set_checked(enabled);
+    }
+
+    /// The check mark of the Pomodoro's daily start, whether it was changed here or in the window
+    pub fn set_auto_pomodoro(&self, enabled: bool) {
+        self.auto_pomodoro.set_checked(enabled);
     }
 }

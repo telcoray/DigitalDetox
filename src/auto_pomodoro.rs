@@ -36,13 +36,16 @@ pub fn start_checking() -> Timer {
     timer
 }
 
-/// "Start on its own each day", in the Pomodoro tab
+/// "Start on its own each day", in the Pomodoro tab or the tray menu
 pub fn toggle(app: &Rc<App>) {
     let mut settings = app.settings.borrow_mut();
     settings.auto_pomodoro = !settings.auto_pomodoro;
     settings.save();
     log!("[auto-pomodoro] turned {}", if settings.auto_pomodoro { "on" } else { "off" });
     app.window.set_auto_pomodoro(settings.auto_pomodoro);
+    if let Some(tray) = &app.tray {
+        tray.set_auto_pomodoro(settings.auto_pomodoro);
+    }
     drop(settings);
     if !app.settings.borrow().auto_pomodoro {
         cancel(app);

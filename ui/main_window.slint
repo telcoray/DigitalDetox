@@ -449,8 +449,8 @@ export component MainWindow inherits Window {
                 }
 
                 VerticalLayout {
-                    padding-top: 16px;
-                    padding-bottom: 12px;
+                    padding-top: 10px;
+                    padding-bottom: 4px;
 
                     Label {
                         min-height: 20px;
@@ -459,6 +459,40 @@ export component MainWindow inherits Window {
                         color: Theme.faint;
                     }
                 }
+
+                // The daily start, right above the button so it's seen without scrolling.
+                // Explained in "How does it work?" below.
+                Rectangle {
+                    height: 40px;
+
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 10px;
+
+                        Label {
+                            text: "Start on its own each day";
+                            font-size: 14px;
+                            color: auto-touch.has-hover ? Theme.title : Theme.muted;
+                            vertical-alignment: center;
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+
+                            Switch {
+                                checked: root.auto-pomodoro;
+                                on-color: Theme.tomato;
+                            }
+                        }
+                    }
+
+                    auto-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.auto-pomodoro-toggled(); }
+                    }
+                }
+
+                VerticalLayout { height: 4px; }
 
                 if !root.pomodoro-running: PrimaryButton {
                     text: "Start Pomodoro";
@@ -1017,41 +1051,11 @@ export component MainWindow inherits Window {
                 horizontal-alignment: left;
             }
 
-            // Same row as "Sync with paired devices" in the Sync tab
-            Rectangle {
-                height: 44px;
-
-                HorizontalLayout {
-                    spacing: 12px;
-
-                    Label {
-                        text: "Start on its own each day";
-                        font-size: 16px;
-                        color: Theme.title;
-                        horizontal-alignment: left;
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
-                    }
-
-                    VerticalLayout {
-                        alignment: center;
-
-                        Switch {
-                            checked: root.auto-pomodoro;
-                            on-color: Theme.tomato;
-                        }
-                    }
-                }
-
-                TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => { root.auto-pomodoro-toggled(); }
-                }
-            }
-
+            // About the switch on the first screen
             for line in [
-                "When you first use the PC each day, it",
-                "starts after 30 seconds, on this PC only",
+                "Start on its own each day: when you first",
+                "use the PC each day, the Pomodoro starts",
+                "after 30 seconds, on this PC only",
             ]: Label {
                 text: line;
                 font-size: 14px;
