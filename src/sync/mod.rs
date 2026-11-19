@@ -23,7 +23,7 @@ use std::time::{Duration, Instant};
 use spake2::{Ed25519Group, Spake2};
 
 pub use config::Config;
-pub use protocol::{Group, Shared, Version, random_code};
+pub use protocol::{Group, Plan, Shared, Version, random_code};
 use protocol::{Message, PORT};
 
 /// How often the current activity is broadcast, so devices that wake up or join catch up

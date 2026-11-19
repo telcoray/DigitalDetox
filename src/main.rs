@@ -22,6 +22,7 @@ mod dpi;
 mod foreground;
 mod keyboard_hook;
 mod log;
+mod plan_editor;
 mod pomodoro;
 mod power;
 mod reminder;
@@ -174,6 +175,7 @@ fn main() -> Result<(), slint::PlatformError> {
     APP.with(|slot| *slot.borrow_mut() = Some(app.clone()));
     update_pomodoro_view(&app);
     sharing::setup(&app);
+    plan_editor::setup(&app);
     *app._schedule_timer.borrow_mut() = Some(schedule::setup(&app));
     instance.listen_for_show_requests(|| dispatch(Action::Open));
 
@@ -405,8 +407,9 @@ fn toggle_pomodoro(app: &Rc<App>) {
         }
         None => {
             let start = time_format::now_ms();
-            run_pomodoro(app, start, None, true);
-            sharing::publish(app, sync::Shared::Pomodoro { start, paused_at: None });
+            let plan = app.settings.borrow().pomodoro;
+            run_pomodoro(app, start, None, plan, true);
+            sharing::publish(app, sync::Shared::Pomodoro { start, paused_at: None, plan });
         }
     }
 }
@@ -426,7 +429,11 @@ fn toggle_pause(app: &Rc<App>) {
             run.reminder = None;
             log!("[pomodoro] paused");
         }
-        run.shared.then(|| sync::Shared::Pomodoro { start: run.tracker.start_ms(), paused_at: run.tracker.paused_at() })
+        run.shared.then(|| sync::Shared::Pomodoro {
+            start: run.tracker.start_ms(),
+            paused_at: run.tracker.paused_at(),
+            plan: run.tracker.plan(),
+        })
     };
     if let Some(shared) = shared {
         sharing::publish(app, shared);
@@ -435,16 +442,17 @@ fn toggle_pause(app: &Rc<App>) {
 }
 
 /// Runs the Pomodoro that started at `start_ms` (now, or earlier on a paired device), paused
-/// since `paused_at` if it is. `shared`: paired devices follow it.
-fn run_pomodoro(app: &Rc<App>, start_ms: u64, paused_at: Option<u64>, shared: bool) {
-    log!("[pomodoro] running, started at {start_ms}, paused at {paused_at:?}, shared: {shared}");
+/// since `paused_at` if it is, with the lengths in `plan`. `shared`: paired devices follow it.
+fn run_pomodoro(app: &Rc<App>, start_ms: u64, paused_at: Option<u64>, plan: pomodoro::Plan, shared: bool) {
+    log!("[pomodoro] running, started at {start_ms}, paused at {paused_at:?}, {plan:?}, shared: {shared}");
     let timer = Timer::default();
     timer.start(TimerMode::Repeated, Duration::from_secs(1), || with_app(pomodoro_tick));
-    let tracker = pomodoro::Tracker::new(start_ms, paused_at);
+    let tracker = pomodoro::Tracker::new(start_ms, paused_at, plan);
     let previous = app.pomodoro.replace(Some(PomodoroRun { tracker, shared, _timer: timer, reminder: None }));
     // Dropped outside the borrow: this removes its reminder card if it's shown
     drop(previous);
     app.window.set_error_text(SharedString::new());
+    app.window.set_pomodoro_editing(false);
     app.window.set_tab(1);
     if let Some(tray) = &app.tray {
         tray.set_pomodoro_running(true);
@@ -466,27 +474,38 @@ fn stop_pomodoro(app: &Rc<App>) {
 
 fn pomodoro_tick(app: &Rc<App>) {
     let now = time_format::now_ms();
-    let event = {
+    let (event, shared) = {
         let mut slot = app.pomodoro.borrow_mut();
         let Some(run) = slot.as_mut() else { return };
         let event = run.tracker.tick(now);
         match event {
             Some(pomodoro::Event::Remind) => {
-                let minutes = pomodoro::break_length(run.tracker.phase(now).round()).as_secs() / 60;
+                let minutes = run.tracker.plan().break_length(run.tracker.phase(now).round()).as_secs() / 60;
                 let message = format!("Save your work: the screen will lock for a {minutes}-minute break.");
                 run.reminder = Reminder::show(&message).inspect_err(|e| log!("[pomodoro] couldn't show the reminder: {e}")).ok();
             }
             Some(pomodoro::Event::BreakDue(_)) => run.reminder = None,
-            None => {}
+            Some(pomodoro::Event::Finished) | None => {}
         }
-        event
+        (event, run.shared)
     };
-    // Not while a detox is on screen (e.g. one started on a paired device): it ends first
-    if let Some(pomodoro::Event::BreakDue(length)) = event
-        && app.session.borrow().is_none()
-    {
-        log!("[pomodoro] break of {} s", length.as_secs());
-        start_lock(app, length, SessionKind::Break);
+    match event {
+        // Not while a detox is on screen (e.g. one started on a paired device): it ends first
+        Some(pomodoro::Event::BreakDue(length)) if app.session.borrow().is_none() => {
+            log!("[pomodoro] break of {} s", length.as_secs());
+            start_lock(app, length, SessionKind::Break);
+        }
+        // Paired devices get there at the same moment; saying so keeps one that was off from
+        // starting it again when it comes back
+        Some(pomodoro::Event::Finished) => {
+            log!("[pomodoro] all rounds done");
+            stop_pomodoro(app);
+            if shared {
+                sharing::publish(app, sync::Shared::Idle);
+            }
+            return;
+        }
+        _ => {}
     }
     update_pomodoro_view(app);
 }
@@ -495,6 +514,26 @@ fn pomodoro_tick(app: &Rc<App>) {
 fn update_pomodoro_view(app: &App) {
     let window = &app.window;
     let slot = app.pomodoro.borrow();
+    // The running one's plan, or the one the next Pomodoro started here will have
+    let plan = slot.as_ref().map_or_else(|| app.settings.borrow().pomodoro, |run| run.tracker.plan()).sane();
+    window.set_plan_work(plan.work as i32);
+    window.set_plan_short_break(plan.short_break as i32);
+    window.set_plan_long_break(plan.long_break as i32);
+    window.set_plan_rounds(plan.rounds as i32);
+    window.set_plan_total(plan.total as i32);
+    // With a set number of rounds, the dots count those (as the text does), if they fit
+    const MAX_DOTS: u32 = 8;
+    let dots = match plan.total {
+        0 => plan.rounds,
+        total if total <= MAX_DOTS => total,
+        _ => 0,
+    };
+    window.set_pomodoro_dots(dots as i32);
+    let dot = |phase: &pomodoro::Phase| if plan.total == 0 { phase.round() } else { phase.number() } as i32;
+    let round_text = |phase: &pomodoro::Phase| match plan.total {
+        0 => format!("Round {} of {}", phase.round(), plan.rounds),
+        total => format!("Round {} of {total}", phase.number()),
+    };
     let tooltip = match slot.as_ref() {
         Some(run) => {
             let phase = run.tracker.phase(time_format::now_ms());
@@ -502,7 +541,8 @@ fn update_pomodoro_view(app: &App) {
             let paused = run.tracker.paused_at().is_some();
             window.set_pomodoro_running(true);
             window.set_pomodoro_paused(paused);
-            window.set_pomodoro_round(round as i32);
+            window.set_pomodoro_round(dot(&phase));
+            window.set_pomodoro_round_text(round_text(&phase).into());
             if let Some(tray) = &app.tray {
                 tray.set_pomodoro_paused(paused);
             }
@@ -514,31 +554,40 @@ fn update_pomodoro_view(app: &App) {
                     "Digital Detox - Pomodoro paused".into()
                 }
                 pomodoro::Phase::Work { remaining, .. } => {
-                    let break_minutes = pomodoro::break_length(round).as_secs() / 60;
+                    let break_minutes = plan.break_length(round).as_secs() / 60;
                     window.set_pomodoro_time(time_format::countdown(remaining).into());
                     window.set_pomodoro_caption(format!("until your {break_minutes}-minute break").into());
                     let break_at = chrono::Local::now() + remaining;
                     window.set_pomodoro_info(format!("Break at {}", time_format::short_time(break_at)).into());
                     let minutes = remaining.as_secs().div_ceil(60);
-                    format!("Digital Detox - Pomodoro {round}/{}, break in {minutes} min", pomodoro::ROUNDS)
+                    format!("Digital Detox - Pomodoro, {}, break in {minutes} min", round_text(&phase).to_lowercase())
                 }
                 pomodoro::Phase::Break { remaining, .. } => {
                     window.set_pomodoro_time(time_format::countdown(remaining).into());
                     window.set_pomodoro_caption("of break left".into());
                     let back_at = chrono::Local::now() + remaining;
-                    window.set_pomodoro_info(format!("Next round at {}", time_format::short_time(back_at)).into());
+                    let next = if plan.total != 0 && phase.number() == plan.total { "Done" } else { "Next round" };
+                    window.set_pomodoro_info(format!("{next} at {}", time_format::short_time(back_at)).into());
                     "Digital Detox - Pomodoro break".into()
+                }
+                // Stopped at the next tick
+                pomodoro::Phase::Done => {
+                    window.set_pomodoro_time(time_format::countdown(Duration::ZERO).into());
+                    window.set_pomodoro_caption("all rounds done".into());
+                    window.set_pomodoro_info(SharedString::new());
+                    "Digital Detox".into()
                 }
             }
         }
         None => {
-            let break_minutes = pomodoro::SHORT_BREAK.as_secs() / 60;
+            let first = pomodoro::Phase::Work { round: 1, number: 1, remaining: plan.work_length() };
             window.set_pomodoro_running(false);
             window.set_pomodoro_paused(false);
             window.set_pomodoro_round(1);
-            window.set_pomodoro_time(time_format::countdown(pomodoro::WORK).into());
-            window.set_pomodoro_caption(format!("of focus, then a {break_minutes}-minute break").into());
-            let break_at = chrono::Local::now() + pomodoro::WORK;
+            window.set_pomodoro_round_text(round_text(&first).into());
+            window.set_pomodoro_time(time_format::countdown(plan.work_length()).into());
+            window.set_pomodoro_caption(format!("of focus, then a {}-minute break", plan.break_length(1).as_secs() / 60).into());
+            let break_at = chrono::Local::now() + plan.work_length();
             window.set_pomodoro_info(format!("First break at {}", time_format::short_time(break_at)).into());
             "Digital Detox".into()
         }

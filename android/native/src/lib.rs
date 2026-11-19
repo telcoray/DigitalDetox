@@ -24,8 +24,9 @@ macro_rules! log {
     }};
 }
 
-// Some of it is only used on Windows (e.g. creating a group, which Java does here)
-#[allow(dead_code)]
+// Some of it is only used on Windows (e.g. creating a group, which Java does here, or the
+// Pomodoro plan, which Java reads from the JSON)
+#[allow(dead_code, unused_imports)]
 mod sync {
     include!(concat!(env!("OUT_DIR"), "/sync.rs"));
 }

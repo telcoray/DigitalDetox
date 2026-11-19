@@ -33,7 +33,48 @@ pub enum Shared {
         // Set while paused. Optional, so older versions still read the message.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         paused_at: Option<u64>,
+        // Chosen on the device that started it. Older versions leave it out (and ignore it):
+        // then it's the usual 25/5/15 with 4 rounds.
+        #[serde(default)]
+        plan: Plan,
     },
+}
+
+/// The lengths of a Pomodoro, in minutes, and its rounds
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Plan {
+    pub work: u32,
+    pub short_break: u32,
+    pub long_break: u32,
+    /// Work rounds per cycle: the break after the last one is the long one
+    pub rounds: u32,
+    /// Stops by itself after this many rounds (and their breaks); 0 = until stopped
+    pub total: u32,
+}
+
+impl Default for Plan {
+    fn default() -> Self {
+        Self { work: 25, short_break: 5, long_break: 15, rounds: 4, total: 0 }
+    }
+}
+
+impl Plan {
+    pub const MAX_WORK: u32 = 180;
+    pub const MAX_BREAK: u32 = 120;
+    pub const MAX_ROUNDS: u32 = 8;
+    pub const MAX_TOTAL: u32 = 50;
+
+    /// Within the limits the app offers, whatever a message said
+    pub fn sane(self) -> Self {
+        Self {
+            work: self.work.clamp(1, Self::MAX_WORK),
+            short_break: self.short_break.clamp(1, Self::MAX_BREAK),
+            long_break: self.long_break.clamp(1, Self::MAX_BREAK),
+            rounds: self.rounds.clamp(1, Self::MAX_ROUNDS),
+            total: self.total.min(Self::MAX_TOTAL),
+        }
+    }
 }
 
 /// When a change was made and by which device: on every device the most recent change wins
@@ -223,7 +264,7 @@ mod tests {
             device: 1,
             name: "PC".into(),
             version: Version { time: 10, device: 1 },
-            shared: Shared::Pomodoro { start: 123, paused_at: Some(456) },
+            shared: Shared::Pomodoro { start: 123, paused_at: Some(456), plan: Plan { work: 50, ..Plan::default() } },
             reply: false,
         }
     }
@@ -264,6 +305,14 @@ mod tests {
     fn pairing_works_only_with_the_same_code() {
         assert!(pair("123456", "123456").is_some());
         assert!(pair("123456", "123457").is_none());
+    }
+
+    #[test]
+    fn a_pomodoro_from_an_older_version_has_the_usual_plan() {
+        let old: Shared = serde_json::from_str(r#"{"kind":"pomodoro","start":5}"#).unwrap();
+        assert_eq!(old, Shared::Pomodoro { start: 5, paused_at: None, plan: Plan::default() });
+        let half: Shared = serde_json::from_str(r#"{"kind":"pomodoro","start":5,"plan":{"work":50}}"#).unwrap();
+        assert_eq!(half, Shared::Pomodoro { start: 5, paused_at: None, plan: Plan { work: 50, ..Plan::default() } });
     }
 
     #[test]

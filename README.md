@@ -15,7 +15,7 @@
 ## Features
 
 - **Pick a duration** from 1 to 999 minutes, or use the quick presets (5, 15, 25, 45, 60 min), and see right away when it will end
-- **Pomodoro mode**: 25 minutes of focus with the PC free, then the screen locks for a 5-minute break (15 minutes after every 4th round). A small reminder appears in the corner a minute before each break, and the tray icon shows how long is left. It can also start by itself the first time you use the PC each day
+- **Pomodoro mode**: 25 minutes of focus with the PC free, then the screen locks for a 5-minute break (15 minutes after every 4th round). All of these can be changed, and it can stop by itself after a number of rounds. A small reminder appears in the corner a minute before each break, and the tray icon shows how long is left. It can also start by itself the first time you use the PC each day
 - **Set times**: lock the PC at the times and on the days you choose, e.g. at 13:00 for 30 minutes on weekdays, with a minute's notice
 - **Break after 90 minutes** (optional): after a long stretch at the PC without a pause, a card in the corner offers a 10-minute break
 - **Sync your devices**: pair your PC and laptop once with a 6-digit code, and a detox or a Pomodoro started on one starts on the other too, with the breaks locking both at the same moment. It works on your local network only, with no account or server
@@ -72,6 +72,7 @@ src/
   main.rs             app start-up and main window
   session.rs          one detox session: lock screen, timer, monitors, emergency exit
   pomodoro.rs         the Pomodoro cycle of work rounds and breaks
+  plan_editor.rs      "Change times": the Pomodoro's lengths and rounds
   reminder.rs         the card in the corner ("Break in 1 minute" and the others)
   auto_pomodoro.rs    the Pomodoro that starts by itself each day
   schedule.rs         the Schedule tab: detoxes at set times
@@ -106,6 +107,7 @@ Open the **Pomodoro** tab and click **Start Pomodoro**:
 
 It keeps going round after round until you click **Stop**, here or in the tray menu. **Pause** freezes the countdown until you click **Resume**.
 
+Click **Change times**, under the timer, to choose the minutes of focus, of the short and of the long break, after how many rounds the long break comes, and, if you like, after how many rounds the Pomodoro stops by itself. Paired devices follow the times of the device where the Pomodoro was started.
 
 Turn on **Start on its own each day**, above the button or in the tray menu, and the first time you use the PC each day a card counts down 30 seconds and then starts the Pomodoro, on this PC only. Click **Not today** to skip it.
 

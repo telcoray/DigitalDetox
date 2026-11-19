@@ -169,6 +169,7 @@ component RoundDots inherits HorizontalLayout {
     in property <int> rounds: 4;
     in property <int> current;
     in property <bool> running;
+    in property <string> text;   // "Round 2 of 4"
 
     alignment: center;
     spacing: 10px;
@@ -189,9 +190,57 @@ component RoundDots inherits HorizontalLayout {
     }
 
     Label {
-        text: "Round \{root.current} of \{root.rounds}";
+        text: root.text;
         font-size: 14px;
         color: Theme.muted;
+        vertical-alignment: center;
+    }
+}
+
+// A row of the Pomodoro's settings: "Focus  [25] min"
+component PlanField inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> unit;
+    in-out property <string> text;
+
+    height: 34px;
+    spacing: 10px;
+
+    Label {
+        text: root.label;
+        font-size: 15px;
+        color: Theme.title;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        horizontal-stretch: 1;
+    }
+
+    Rectangle {
+        width: 64px;
+        border-radius: 8px;
+        border-width: 1px;
+        border-color: input.has-focus ? Theme.tomato : Theme.outline-hover;
+        background: #FFFFFF0D;
+
+        input := TextInput {
+            width: parent.width - 12px;
+            text <=> root.text;
+            input-type: number;
+            font-family: Theme.font;
+            font-size: 16px;
+            color: Theme.text;
+            selection-background-color: Theme.tomato-soft;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Label {
+        width: 48px;
+        text: root.unit;
+        font-size: 14px;
+        color: Theme.muted;
+        horizontal-alignment: left;
         vertical-alignment: center;
     }
 }
@@ -245,6 +294,24 @@ export component MainWindow inherits Window {
     in property <string> pomodoro-time;
     in property <string> pomodoro-caption;
     in property <string> pomodoro-info;
+    in property <string> pomodoro-round-text;
+    // How many dots: the rounds of a cycle, or of the whole Pomodoro if it stops by itself
+    // (none if they wouldn't fit). `pomodoro-round` is the one it's at, counted the same way.
+    in property <int> pomodoro-dots: 4;
+    // The plan of the Pomodoro shown: minutes, rounds per cycle, rounds in all (0 = until stopped)
+    in property <int> plan-work: 25;
+    in property <int> plan-short-break: 5;
+    in property <int> plan-long-break: 15;
+    in property <int> plan-rounds: 4;
+    in property <int> plan-total: 0;
+    // Changing it ("Change times"), see plan_editor.rs
+    in-out property <bool> pomodoro-editing;
+    in-out property <string> edit-work;
+    in-out property <string> edit-short-break;
+    in-out property <string> edit-long-break;
+    in-out property <string> edit-rounds;
+    in-out property <string> edit-total;
+    in-out property <string> plan-error;
     // "Start on its own each day" (see auto_pomodoro.rs)
     in property <bool> auto-pomodoro;
 
@@ -280,6 +347,8 @@ export component MainWindow inherits Window {
     // Pauses the running Pomodoro, or resumes it
     callback pause-clicked();
     callback auto-pomodoro-toggled();
+    callback edit-plan-clicked();
+    callback save-plan();
     callback add-appointment-clicked();
     callback save-appointment(string, string);
     callback cancel-appointment();
@@ -312,7 +381,10 @@ export component MainWindow inherits Window {
     }
 
     // Each tab starts at the top, with its "more below" hint
-    changed tab => { scroll.offset = 0; }
+    changed tab => {
+        scroll.offset = 0;
+        root.pomodoro-editing = false;
+    }
 
     scroll := ScrollArea {
         width: 100%;
@@ -413,14 +485,16 @@ export component MainWindow inherits Window {
                     padding-top: 20px;
 
                     Label {
-                        text: root.pomodoro-paused ? "Take your time" : root.pomodoro-running ? "Stay focused" : "Work in focused rounds";
+                        text: root.pomodoro-editing ? "Choose your rounds"
+                            : root.pomodoro-paused ? "Take your time"
+                            : root.pomodoro-running ? "Stay focused" : "Work in focused rounds";
                         font-size: 16px;
                         color: Theme.muted;
                     }
                 }
 
                 // Work time: 25:00 before starting, then the countdown to the break
-                VerticalLayout {
+                if !root.pomodoro-editing: VerticalLayout {
                     vertical-stretch: 1;
                     alignment: center;
 
@@ -438,19 +512,24 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                VerticalLayout {
+                if !root.pomodoro-editing: VerticalLayout {
                     height: 46px;
                     alignment: center;
 
                     RoundDots {
+                        rounds: root.pomodoro-dots;
                         current: root.pomodoro-round;
                         running: root.pomodoro-running;
+                        text: root.pomodoro-round-text;
                     }
                 }
 
-                VerticalLayout {
+                // "First break at 21:15 · Change times"
+                if !root.pomodoro-editing: HorizontalLayout {
                     padding-top: 10px;
                     padding-bottom: 4px;
+                    alignment: center;
+                    spacing: 6px;
 
                     Label {
                         min-height: 20px;
@@ -458,11 +537,83 @@ export component MainWindow inherits Window {
                         font-size: 14px;
                         color: Theme.faint;
                     }
+
+                    if !root.pomodoro-running: Label {
+                        text: "·";
+                        font-size: 14px;
+                        color: Theme.faint;
+                    }
+
+                    if !root.pomodoro-running: Label {
+                        text: "Change times";
+                        font-size: 14px;
+                        color: change-touch.has-hover ? Theme.tomato-hover : Theme.tomato;
+
+                        change-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.edit-plan-clicked(); }
+                        }
+                    }
+                }
+
+                // The lengths and rounds, one per row
+                if root.pomodoro-editing: VerticalLayout {
+                    vertical-stretch: 1;
+                    alignment: center;
+                    spacing: 4px;
+
+                    PlanField { label: "Focus"; unit: "min"; text <=> root.edit-work; }
+                    PlanField { label: "Short break"; unit: "min"; text <=> root.edit-short-break; }
+                    PlanField { label: "Long break"; unit: "min"; text <=> root.edit-long-break; }
+                    PlanField { label: "Long break after"; unit: "rounds"; text <=> root.edit-rounds; }
+                    PlanField { label: "Stop after"; unit: "rounds"; text <=> root.edit-total; }
+
+                    Label {
+                        text: "Leave \"Stop after\" empty to go on until you stop it";
+                        font-size: 13px;
+                        color: Theme.faint;
+                        horizontal-alignment: left;
+                    }
+
+                    // Fills in the usual times; they're kept only with Save
+                    HorizontalLayout {
+                        alignment: start;
+
+                        Label {
+                            text: "Back to the usual 25 / 5 / 15, 4 rounds";
+                            font-size: 13px;
+                            color: reset-touch.has-hover ? Theme.tomato-hover : Theme.tomato;
+
+                            reset-touch := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    root.edit-work = "25";
+                                    root.edit-short-break = "5";
+                                    root.edit-long-break = "15";
+                                    root.edit-rounds = "4";
+                                    root.edit-total = "";
+                                    root.plan-error = "";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if root.pomodoro-editing: VerticalLayout {
+                    padding-top: 8px;
+                    padding-bottom: 8px;
+
+                    Label {
+                        min-height: 20px;
+                        text: root.plan-error;
+                        font-size: 14px;
+                        color: Theme.error;
+                    }
                 }
 
                 // The daily start, right above the button so it's seen without scrolling.
                 // Explained in "How does it work?" below.
-                Rectangle {
+                if !root.pomodoro-editing: Rectangle {
                     height: 40px;
 
                     HorizontalLayout {
@@ -492,9 +643,28 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                VerticalLayout { height: 4px; }
+                if !root.pomodoro-editing: VerticalLayout { height: 4px; }
 
-                if !root.pomodoro-running: PrimaryButton {
+                if root.pomodoro-editing: HorizontalLayout {
+                    spacing: 8px;
+
+                    PrimaryButton {
+                        horizontal-stretch: 1;
+                        text: "Save";
+                        fill: Theme.tomato;
+                        hover-color: Theme.tomato-hover;
+                        pressed-color: Theme.tomato-pressed;
+                        clicked => { root.save-plan(); }
+                    }
+
+                    SecondaryButton {
+                        horizontal-stretch: 1;
+                        text: "Cancel";
+                        clicked => { root.pomodoro-editing = false; }
+                    }
+                }
+
+                if !root.pomodoro-editing && !root.pomodoro-running: PrimaryButton {
                     text: "Start Pomodoro";
                     fill: Theme.tomato;
                     hover-color: Theme.tomato-hover;
@@ -502,7 +672,7 @@ export component MainWindow inherits Window {
                     clicked => { root.pomodoro-clicked(); }
                 }
 
-                if root.pomodoro-running: HorizontalLayout {
+                if !root.pomodoro-editing && root.pomodoro-running: HorizontalLayout {
                     spacing: 8px;
 
                     if !root.pomodoro-paused: SecondaryButton {
@@ -1039,11 +1209,13 @@ export component MainWindow inherits Window {
             title: "How does it work?";
 
             for line in [
-                "• 25 minutes of focus, PC free",
-                "• Then the screen locks for a 5-minute break",
-                "• Every 4th break lasts 15 minutes",
+                "• \{root.plan-work} minutes of focus, PC free",
+                "• Then the screen locks for a \{root.plan-short-break}-minute break",
+                root.plan-rounds == 1 ? "• Every break lasts \{root.plan-long-break} minutes"
+                    : "• After \{root.plan-rounds} rounds, a \{root.plan-long-break}-minute break",
                 "• A reminder appears 1 minute before",
-                "• Repeats until you stop it",
+                root.plan-total == 0 ? "• Repeats until you stop it" : "• Stops by itself after \{root.plan-total} rounds",
+                "• \"Change times\" above sets all of these",
             ]: Label {
                 text: line;
                 font-size: 15px;

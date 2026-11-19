@@ -31,7 +31,15 @@ _Last updated: 2026-11-19_
     ("Take a break" / "Later" = again in 15 min). This PC only.
   - User's choices (2026-11-19): 90 → 10 min, 1-minute warning then lock, this PC only, own tab.
   - Only one corner card at a time (`card_shown` in main.rs); a set time pushes the others away.
-  - Not yet tested by the user.
+  - Tested by the user: set times (with Start now, Skip, Edit, days) and the card's hide arrow.
+- Pomodoro plan ("Change times" in the Pomodoro tab, plan_editor.rs; saved as `pomodoro` in
+  settings.json), not yet released: focus / short / long break minutes, rounds before the long
+  break, and total rounds (0 = until stopped; after the last round's break it stops and publishes
+  Idle). User's choice: the plan travels with the shared Pomodoro (`plan` field in
+  `Shared::Pomodoro`, serde default = 25/5/15 × 4, so older versions interoperate but ignore it).
+  Android reads it in Session.java, keeps it on pause/resume, goes idle when done; it can't edit
+  a plan yet (always starts 25/5/15 × 4). User tested a 1/1/2-minute, 3-round plan on the PC (it
+  stops by itself) and "Back to the usual"; not yet tested on the phone or with a paired PC.
 - "Start on its own each day" switch is now on the Pomodoro tab's first screen and in the tray menu.
 - Tray visibility remains a Windows user preference: drag the icon out of the hidden-icons menu to keep it beside the clock.
 

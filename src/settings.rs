@@ -11,6 +11,9 @@ pub struct Settings {
     /// The last day it was offered or already running, as "2026-11-19"
     #[serde(default)]
     pub auto_pomodoro_day: String,
+    /// The lengths and rounds of a Pomodoro started here (see pomodoro.rs)
+    #[serde(default)]
+    pub pomodoro: crate::sync::Plan,
     /// Offer a break after a long stretch at the PC (see break_reminder.rs)
     #[serde(default)]
     pub break_reminder: bool,

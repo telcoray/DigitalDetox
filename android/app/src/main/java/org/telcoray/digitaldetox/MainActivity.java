@@ -259,6 +259,15 @@ public final class MainActivity extends Activity {
         JSONObject updated = s.shared.has("paused_at")
             ? DetoxService.obj("kind", "pomodoro", "start", start + Math.max(0, now - s.shared.optLong("paused_at")))
             : DetoxService.obj("kind", "pomodoro", "start", start, "paused_at", now);
+        // The lengths chosen where it was started go along, or the other devices would lose them
+        JSONObject plan = s.shared.optJSONObject("plan");
+        if (plan != null) {
+            try {
+                updated.put("plan", plan);
+            } catch (org.json.JSONException e) {
+                throw new IllegalStateException(e);
+            }
+        }
         s.publish(updated);
     }
 
@@ -370,10 +379,12 @@ public final class MainActivity extends Activity {
         boolean running = "pomodoro".equals(s.shared.optString("kind"));
         boolean paused = running && s.shared.has("paused_at");
         Session.Phase current = Session.phase(s.shared, System.currentTimeMillis());
-        countdown.setText(running ? Session.time(current.remaining()) : "25:00");
+        Session.Plan plan = Session.Plan.of(running ? s.shared : new JSONObject());
+        int round = running ? current.round() : 1;
+        countdown.setText(running ? Session.time(current.remaining()) : Session.time(plan.work()));
         phase.setText(paused ? "Paused" : current.locked() && running ? "Break in progress"
-            : current.round() == 4 ? "Until your 15-minute break" : "Until your 5-minute break");
-        rounds.setText("Round " + (running ? current.round() : 1) + " of 4");
+            : "Until your " + plan.breakAfter(round) / 60000 + "-minute break");
+        rounds.setText("Round " + round + " of " + plan.rounds());
         startPomodoro.setVisibility(running ? View.GONE : View.VISIBLE);
         ((View) pause.getParent()).setVisibility(running ? View.VISIBLE : View.GONE);
         pause.setText(paused ? "Resume" : "Pause");

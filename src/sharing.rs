@@ -167,10 +167,14 @@ fn apply(app: &Rc<App>) {
                 crate::stop_pomodoro(app);
             }
         }
-        Shared::Pomodoro { start, paused_at } => {
-            let running = app.pomodoro.borrow().as_ref().map(|run| (run.tracker.start_ms(), run.tracker.paused_at(), run.shared));
-            if running != Some((start, paused_at, true)) {
-                crate::run_pomodoro(app, start, paused_at, true);
+        Shared::Pomodoro { start, paused_at, plan } => {
+            let running = app
+                .pomodoro
+                .borrow()
+                .as_ref()
+                .map(|run| (run.tracker.start_ms(), run.tracker.paused_at(), run.tracker.plan(), run.shared));
+            if running != Some((start, paused_at, plan.sane(), true)) {
+                crate::run_pomodoro(app, start, paused_at, plan, true);
             }
         }
         Shared::Detox { ends_at } => {

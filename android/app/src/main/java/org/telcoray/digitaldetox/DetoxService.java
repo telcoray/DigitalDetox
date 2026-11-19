@@ -38,6 +38,8 @@ public final class DetoxService extends Service {
   if(lockUntil==0&&pending!=null){shared=pending;pending=null;save();}long now=System.currentTimeMillis();
   if(lockUntil>0&&SystemClock.elapsedRealtime()>=lockUntil){escaped=lockKey;lockUntil=0;wallEnd=0;lockKey="";if(pending!=null){shared=pending;pending=null;}save();}
   Session.Phase p=Session.phase(shared,now);
+  // A Pomodoro with a set number of rounds is over: back to idle, like the device that started it
+  if(lockUntil==0&&p.key().equals("done")){publish(obj("kind","idle"));p=Session.phase(shared,now);}
   if(lockUntil==0&&p.locked()&&!p.key().equals(escaped)&&p.remaining()>=5000&&BlockService.instance!=null){lockKey=p.key();wallEnd=now+Math.min(p.remaining(),999*60000L);lockUntil=SystemClock.elapsedRealtime()+(wallEnd-now);save();}
   if(BlockService.instance!=null)BlockService.instance.refresh();
   getSystemService(NotificationManager.class).notify(1,notification(locked()?"Detox · "+Session.time(remaining()):shared.optString("kind").equals("pomodoro")?"Pomodoro · "+Session.time(p.remaining()):syncEnabled?"Sync enabled on your local network":"Ready"));

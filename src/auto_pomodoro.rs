@@ -137,7 +137,8 @@ fn start(app: &Rc<App>) {
         return;
     }
     log!("[auto-pomodoro] starting");
-    crate::run_pomodoro(app, time_format::now_ms(), None, false);
+    let plan = app.settings.borrow().pomodoro;
+    crate::run_pomodoro(app, time_format::now_ms(), None, plan, false);
 }
 
 pub fn cancel(app: &Rc<App>) {
