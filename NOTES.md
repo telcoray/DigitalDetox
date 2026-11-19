@@ -2,7 +2,7 @@
 
 Shared working notes for the agents on this project. Update at the end of each session; keep it short.
 
-_Last updated: 2026-11-07_
+_Last updated: 2026-11-19_
 
 ## Current state
 
@@ -21,6 +21,17 @@ _Last updated: 2026-11-07_
   corner card counts down 30 s, then starts a Pomodoro on this PC only (user's choice: not sent
   to paired devices; a paired device's Idle doesn't stop it). User tested the card and the
   automatic start; not yet checked that laptop and phone stay untouched.
+- New Schedule tab (tabs are now 0 Detox, 1 Pomodoro, 2 Schedule, 3 Sync), not yet released:
+  - set times (schedule.rs): up to 4 detoxes, e.g. 13:00 for 30 min, each on chosen weekdays
+    (bitmask in settings.json, Monday = bit 0; older entries default to every day); a corner card counts
+    down the last minute ("Start now" / "Skip"), then locks. This PC only, skipped during a
+    Pomodoro or while Windows is locked, not fired after sleeping through it (> 2 min late).
+  - "Break after 90 minutes" (break_reminder.rs, off by default): after 90 min of use (5 min
+    without input, sleep, a lock or a Pomodoro reset it) a card offers a 10-minute break
+    ("Take a break" / "Later" = again in 15 min). This PC only.
+  - User's choices (2026-11-19): 90 → 10 min, 1-minute warning then lock, this PC only, own tab.
+  - Only one corner card at a time (`card_shown` in main.rs); a set time pushes the others away.
+  - Not yet tested by the user.
 - Tray visibility remains a Windows user preference: drag the icon out of the hidden-icons menu to keep it beside the clock.
 
 ## Android preview

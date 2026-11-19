@@ -69,7 +69,7 @@ fn check(app: &Rc<App>) {
     if app.pomodoro.borrow().is_some() {
         return mark_done(app, today);
     }
-    if app.session.borrow().is_some() || app.offer.borrow().is_some() {
+    if app.session.borrow().is_some() || crate::card_shown(app) {
         return;
     }
     // Someone at the PC, past the Windows lock screen
@@ -137,7 +137,7 @@ fn start(app: &Rc<App>) {
     crate::run_pomodoro(app, time_format::now_ms(), None, false);
 }
 
-fn cancel(app: &Rc<App>) {
+pub fn cancel(app: &Rc<App>) {
     if app.offer.take().is_some() {
         log!("[auto-pomodoro] not today");
     }

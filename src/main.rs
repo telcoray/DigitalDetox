@@ -16,6 +16,7 @@ macro_rules! log {
 
 mod auto_pomodoro;
 mod autostart;
+mod break_reminder;
 mod brightness;
 mod dpi;
 mod foreground;
@@ -24,6 +25,7 @@ mod log;
 mod pomodoro;
 mod power;
 mod reminder;
+mod schedule;
 mod screen;
 mod session;
 mod settings;
@@ -70,9 +72,16 @@ struct App {
     settings: RefCell<settings::Settings>,
     // The card offering the day's first Pomodoro, while it counts down (see auto_pomodoro.rs)
     offer: RefCell<Option<auto_pomodoro::Offer>>,
+    // The break offered after a long stretch at the PC
+    break_reminder: break_reminder::State,
+    // Detoxes at set times
+    schedule: schedule::State,
     tray: Option<tray::Tray>,
     _preview_timer: Timer,
     _auto_pomodoro_timer: Timer,
+    _break_reminder_timer: Timer,
+    // Set once the app exists (see `main`): the Schedule tab's callbacks need it
+    _schedule_timer: RefCell<Option<Timer>>,
 }
 
 struct PomodoroRun {
@@ -151,14 +160,19 @@ fn main() -> Result<(), slint::PlatformError> {
         sharing: sharing::Sharing::load(),
         settings: RefCell::new(settings::Settings::load()),
         offer: RefCell::default(),
+        break_reminder: break_reminder::State::default(),
+        schedule: schedule::State::default(),
         tray,
         _preview_timer: preview_timer,
         _auto_pomodoro_timer: auto_pomodoro::start_checking(),
+        _break_reminder_timer: break_reminder::start_checking(),
+        _schedule_timer: RefCell::default(),
     });
     app.window.set_auto_pomodoro(app.settings.borrow().auto_pomodoro);
     APP.with(|slot| *slot.borrow_mut() = Some(app.clone()));
     update_pomodoro_view(&app);
     sharing::setup(&app);
+    *app._schedule_timer.borrow_mut() = Some(schedule::setup(&app));
     instance.listen_for_show_requests(|| dispatch(Action::Open));
 
     // Without a tray icon there would be no way to reach a hidden window, so then it opens anyway
@@ -200,6 +214,14 @@ fn handle(app: &Rc<App>, action: Action) {
         }
         Action::Sync(_) => unreachable!("handled above"),
     }
+}
+
+/// One of the corner cards is shown: the others wait, so they never pile up
+fn card_shown(app: &App) -> bool {
+    app.offer.borrow().is_some()
+        || app.break_reminder.card_shown()
+        || app.schedule.card_shown()
+        || app.pomodoro.borrow().as_ref().is_some_and(|run| run.reminder.is_some())
 }
 
 fn toggle_autostart(app: &App) {

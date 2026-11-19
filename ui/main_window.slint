@@ -1,6 +1,6 @@
 // Main window where the duration is chosen. Same style as the lock screen: one dark background,
 // a large thin number, quiet gray text and the blue accent.
-// Three tabs, Detox, Pomodoro and Sync, each with an explanation section further down (scroll to see it).
+// Four tabs, Detox, Pomodoro, Schedule and Sync, each with an explanation section further down (scroll to see it).
 
 import { Label, ScrollArea, Theme } from "common.slint";
 
@@ -217,6 +217,13 @@ component Switch inherits Rectangle {
     }
 }
 
+// A detox at a set time, in the Schedule tab
+export struct ScheduledDetox {
+    time: string,
+    days: string,      // "Every day", "Weekdays", "Mon Wed Fri"
+    minutes: int,
+}
+
 // A paired device in the Sync tab
 export struct SyncDevice {
     name: string,
@@ -224,7 +231,7 @@ export struct SyncDevice {
 }
 
 export component MainWindow inherits Window {
-    // 0 = Detox, 1 = Pomodoro
+    // 0 = Detox, 1 = Pomodoro, 2 = Schedule, 3 = Sync
     in-out property <int> tab: 0;
 
     in-out property <string> minutes-text: "25";
@@ -240,6 +247,16 @@ export component MainWindow inherits Window {
     in property <string> pomodoro-info;
     // "Start on its own each day" (see auto_pomodoro.rs)
     in property <bool> auto-pomodoro;
+
+    // Detoxes at set times, kept up to date by Rust (schedule.rs)
+    in property <[ScheduledDetox]> appointments;
+    in-out property <bool> adding-appointment;
+    in-out property <string> new-time;
+    in-out property <string> new-minutes;
+    in property <[bool]> new-days;         // Monday first
+    in property <string> schedule-status;  // "Next one today at 13:00", or what's wrong with the time typed
+    // "Break after 90 minutes" (see break_reminder.rs)
+    in property <bool> break-reminder;
 
     // Syncing with paired devices, kept up to date by Rust (sharing.rs)
     in property <bool> sync-paired;        // at least one paired device
@@ -263,6 +280,13 @@ export component MainWindow inherits Window {
     // Pauses the running Pomodoro, or resumes it
     callback pause-clicked();
     callback auto-pomodoro-toggled();
+    callback add-appointment-clicked();
+    callback save-appointment(string, string);
+    callback cancel-appointment();
+    callback toggle-day(int);
+    callback edit-appointment(int);
+    callback remove-appointment(int);
+    callback break-reminder-toggled();
     callback sync-toggled();
     callback pair-clicked();
     callback enter-code-clicked();
@@ -303,7 +327,7 @@ export component MainWindow inherits Window {
             padding-bottom: 28px;
 
             TabBar {
-                tabs: ["Detox", "Pomodoro", "Sync"];
+                tabs: ["Detox", "Pomodoro", "Schedule", "Sync"];
                 current <=> root.tab;
                 accent: root.tab == 1 ? Theme.tomato : Theme.accent;
                 accent-soft: root.tab == 1 ? Theme.tomato-soft : Theme.accent-soft;
@@ -471,6 +495,226 @@ export component MainWindow inherits Window {
             }
 
             if root.tab == 2: VerticalLayout {
+                vertical-stretch: 1;
+
+                VerticalLayout {
+                    padding-top: 20px;
+
+                    Label {
+                        text: "Lock the PC at set times";
+                        font-size: 16px;
+                        color: Theme.muted;
+                    }
+                }
+
+                // The set times, each with its length and a way to remove it
+                if !root.adding-appointment: VerticalLayout {
+                    vertical-stretch: 1;
+                    alignment: center;
+                    spacing: 4px;
+
+                    if root.appointments.length == 0: Label {
+                        text: "No set times yet";
+                        font-size: 16px;
+                        color: Theme.faint;
+                    }
+
+                    for item[index] in root.appointments: HorizontalLayout {
+                        height: 44px;
+                        padding-left: 4px;
+                        padding-right: 4px;
+                        spacing: 12px;
+
+                        Label {
+                            text: item.time;
+                            font-size: 28px;
+                            font-weight: 300;
+                            color: Theme.text;
+                            vertical-alignment: center;
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            horizontal-stretch: 1;
+
+                            Label {
+                                text: item.days;
+                                font-size: 15px;
+                                color: Theme.muted;
+                                horizontal-alignment: left;
+                            }
+
+                            Label {
+                                text: "for \{item.minutes} min";
+                                font-size: 13px;
+                                color: Theme.faint;
+                                horizontal-alignment: left;
+                            }
+                        }
+
+                        Label {
+                            text: "Edit";
+                            font-size: 14px;
+                            color: edit-touch.has-hover ? Theme.title : Theme.faint;
+                            vertical-alignment: center;
+
+                            edit-touch := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { root.edit-appointment(index); }
+                            }
+                        }
+
+                        Label {
+                            text: "Remove";
+                            font-size: 14px;
+                            color: remove-touch.has-hover ? Theme.title : Theme.faint;
+                            vertical-alignment: center;
+
+                            remove-touch := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { root.remove-appointment(index); }
+                            }
+                        }
+                    }
+                }
+
+                // A new set time: the time large, like the other tabs, and its length below
+                if root.adding-appointment: VerticalLayout {
+                    vertical-stretch: 1;
+                    alignment: center;
+                    spacing: 10px;
+
+                    Rectangle {
+                        height: new-time-input.preferred-height;
+
+                        // Placeholder, while nothing is typed
+                        if root.new-time == "": Label {
+                            text: "13:00";
+                            font-size: 64px;
+                            font-weight: 100;
+                            color: Theme.outline-hover;
+                        }
+
+                        new-time-input := TextInput {
+                            text <=> root.new-time;
+                            font-family: Theme.font;
+                            font-size: 64px;
+                            font-weight: 100;
+                            color: Theme.text;
+                            selection-background-color: Theme.accent-soft;
+                            horizontal-alignment: center;
+                            accepted => { root.save-appointment(root.new-time, root.new-minutes); }
+                            init => { self.focus(); }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 10px;
+
+                        Label {
+                            text: "for";
+                            font-size: 15px;
+                            color: Theme.muted;
+                            vertical-alignment: center;
+                        }
+
+                        Rectangle {
+                            width: 64px;
+                            height: 36px;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: Theme.outline-hover;
+                            background: #FFFFFF0D;
+
+                            TextInput {
+                                width: parent.width - 12px;
+                                text <=> root.new-minutes;
+                                input-type: number;
+                                font-family: Theme.font;
+                                font-size: 18px;
+                                color: Theme.text;
+                                selection-background-color: Theme.accent-soft;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                accepted => { root.save-appointment(root.new-time, root.new-minutes); }
+                            }
+                        }
+
+                        Label {
+                            text: "minutes";
+                            font-size: 15px;
+                            color: Theme.muted;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    // The days it happens on, Monday first: lit up in the accent color when picked
+                    HorizontalLayout {
+                        padding-top: 6px;
+                        spacing: 6px;
+
+                        for name[index] in ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]: Rectangle {
+                            height: 36px;
+                            horizontal-stretch: 1;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: root.new-days[index] ? Theme.accent : day-touch.has-hover ? Theme.subtle : Theme.outline-hover;
+                            background: root.new-days[index] ? Theme.accent-soft : day-touch.has-hover ? #FFFFFF1A : #FFFFFF0D;
+
+                            Label {
+                                y: -1px;
+                                height: parent.height;
+                                text: name;
+                                font-size: 14px;
+                                font-weight: 600;
+                                color: root.new-days[index] ? Theme.text : Theme.muted;
+                                vertical-alignment: center;
+                            }
+
+                            day-touch := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { root.toggle-day(index); }
+                            }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    padding-top: 12px;
+                    padding-bottom: 12px;
+
+                    Label {
+                        min-height: 20px;
+                        text: root.schedule-status;
+                        font-size: 14px;
+                        color: root.adding-appointment ? Theme.error : Theme.faint;
+                    }
+                }
+
+                if !root.adding-appointment: PrimaryButton {
+                    text: "Add a time";
+                    clicked => { root.add-appointment-clicked(); }
+                }
+
+                if root.adding-appointment: HorizontalLayout {
+                    spacing: 8px;
+
+                    PrimaryButton {
+                        horizontal-stretch: 1;
+                        text: "Save";
+                        clicked => { root.save-appointment(root.new-time, root.new-minutes); }
+                    }
+
+                    SecondaryButton {
+                        horizontal-stretch: 1;
+                        text: "Cancel";
+                        clicked => { root.cancel-appointment(); }
+                    }
+                }
+            }
+
+            if root.tab == 3: VerticalLayout {
                 vertical-stretch: 1;
 
                 VerticalLayout {
@@ -670,6 +914,63 @@ export component MainWindow inherits Window {
         }
 
         if root.tab == 2: Section {
+            title: "How does it work?";
+
+            for line in [
+                "• A card counts down the last minute,",
+                "  so you can start now or skip it",
+                "• Then the screen locks, as in a detox",
+                "• On this PC only",
+                "• Skipped during a Pomodoro, which has",
+                "  breaks of its own",
+            ]: Label {
+                text: line;
+                font-size: 15px;
+                color: Theme.muted;
+                horizontal-alignment: left;
+            }
+
+            // Same row as "Sync with paired devices" in the Sync tab
+            Rectangle {
+                height: 44px;
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+                    Label {
+                        text: "Break after 90 minutes";
+                        font-size: 16px;
+                        color: Theme.title;
+                        horizontal-alignment: left;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        Switch { checked: root.break-reminder; }
+                    }
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.break-reminder-toggled(); }
+                }
+            }
+
+            for line in [
+                "After 90 minutes at the PC without a",
+                "pause, a card offers a 10-minute break",
+            ]: Label {
+                text: line;
+                font-size: 14px;
+                color: Theme.faint;
+                horizontal-alignment: left;
+            }
+        }
+
+        if root.tab == 3: Section {
             title: "How does it work?";
 
             for line in [

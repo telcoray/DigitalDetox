@@ -11,6 +11,30 @@ pub struct Settings {
     /// The last day it was offered or already running, as "2026-11-19"
     #[serde(default)]
     pub auto_pomodoro_day: String,
+    /// Offer a break after a long stretch at the PC (see break_reminder.rs)
+    #[serde(default)]
+    pub break_reminder: bool,
+    /// Detoxes at set times each day, in time order (see schedule.rs)
+    #[serde(default)]
+    pub schedule: Vec<Appointment>,
+}
+
+/// A detox at a set time on some days of the week: at 13:00 for 30 minutes, Monday to Friday
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Appointment {
+    pub hour: u32,
+    pub minute: u32,
+    pub minutes: u32,
+    /// One bit per day, Monday first (bit 0) to Sunday (bit 6). Set times saved before days
+    /// existed are for every day.
+    #[serde(default = "every_day")]
+    pub days: u8,
+}
+
+pub const EVERY_DAY: u8 = 0b111_1111;
+
+fn every_day() -> u8 {
+    EVERY_DAY
 }
 
 impl Settings {

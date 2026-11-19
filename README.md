@@ -15,7 +15,9 @@
 ## Features
 
 - **Pick a duration** from 1 to 999 minutes, or use the quick presets (5, 15, 25, 45, 60 min), and see right away when it will end
-- **Pomodoro mode**: 25 minutes of focus with the PC free, then the screen locks for a 5-minute break (15 minutes after every 4th round). A small reminder appears in the corner a minute before each break, and the tray icon shows how long is left
+- **Pomodoro mode**: 25 minutes of focus with the PC free, then the screen locks for a 5-minute break (15 minutes after every 4th round). A small reminder appears in the corner a minute before each break, and the tray icon shows how long is left. It can also start by itself the first time you use the PC each day
+- **Set times**: lock the PC at the times and on the days you choose, e.g. at 13:00 for 30 minutes on weekdays, with a minute's notice
+- **Break after 90 minutes** (optional): after a long stretch at the PC without a pause, a card in the corner offers a 10-minute break
 - **Sync your devices**: pair your PC and laptop once with a 6-digit code, and a detox or a Pomodoro started on one starts on the other too, with the breaks locking both at the same moment. It works on your local network only, with no account or server
 - **Full-screen lock** that stays on top until the timer ends, with a countdown, progress bar and unlock time
 - **The screen switches off gradually**: it dims as soon as the detox starts (on laptops the brightness drops to the minimum), turns black after three minutes without input, and on desktop PCs the monitor is switched off a couple of minutes later. Press **+5 minutes** to keep it on for longer, move the mouse to see the timer again, or press **Turn off screen** to go dark right away. Everything comes back at the end.
@@ -70,7 +72,10 @@ src/
   main.rs             app start-up and main window
   session.rs          one detox session: lock screen, timer, monitors, emergency exit
   pomodoro.rs         the Pomodoro cycle of work rounds and breaks
-  reminder.rs         the "Break in 1 minute" card
+  reminder.rs         the card in the corner ("Break in 1 minute" and the others)
+  auto_pomodoro.rs    the Pomodoro that starts by itself each day
+  schedule.rs         the Schedule tab: detoxes at set times
+  break_reminder.rs   the break offered after a long stretch at the PC
   sharing.rs          what to do when a paired device starts or stops something
   sync/               pairing and talking to paired devices on the local network
   keyboard_hook.rs    blocking of system shortcuts
@@ -101,7 +106,16 @@ Open the **Pomodoro** tab and click **Start Pomodoro**:
 
 It keeps going round after round until you click **Stop**, here or in the tray menu. **Pause** freezes the countdown until you click **Resume**.
 
+
+Turn on **Start on its own each day**, further down in the tab, and the first time you use the PC each day a card counts down 30 seconds and then starts the Pomodoro, on this PC only. Click **Not today** to skip it.
+
 <br clear="right" />
+
+### Set times
+
+Open the **Schedule** tab, click **Add a time**, type the time (e.g. 13:00) and how many minutes, pick the days of the week, then click **Save**. On those days, a minute before that time, a card in the corner counts down: click **Start now** to lock right away, or **Skip** to let it go this time. Set times lock this PC only, and are skipped during a Pomodoro, which has breaks of its own.
+
+Further down in the same tab, **Break after 90 minutes** offers a 10-minute break after 90 minutes at the PC without a pause (stepping away for 5 minutes counts as one). Click **Take a break** to lock the screen, or **Later** to be asked again in 15 minutes.
 
 ### Sync with your other devices
 

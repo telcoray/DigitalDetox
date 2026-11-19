@@ -282,7 +282,7 @@ fn set_pairing(app: &App, pairing: Pairing, status: &str) {
     app.window.set_pairing_mode(pairing as i32);
     app.window.set_pairing_status(status.into());
     if pairing != Pairing::None {
-        app.window.set_tab(2);
+        app.window.set_tab(3);
     }
 }
 
