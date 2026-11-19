@@ -44,6 +44,12 @@ _Last updated: 2026-11-19_
   devices) tested by the user: a 1-minute lock reached all four. A reinstalled device comes back
   with a new id. The Sync list now drops entries with the same name that aren't online
   (`Config::remember_peer`), so the old one doesn't stay "offline" forever. User confirmed this.
+  A custom Pomodoro plan started on the PC was followed by all four.
+- Clock correction (src/sync/clock.rs): the tablet's countdown was 4–5 s ahead even with
+  automatic time on. Every State message now carries `sent_at` (the sender's raw clock, optional
+  so older versions interoperate); each device follows the median of all clocks, its own
+  included. Windows uses it through `time_format::now_ms`, Android through `Session.now()`
+  (offset returned by the native `poll`). User tested on all four: almost no difference left.
 - "Start on its own each day" switch is now on the Pomodoro tab's first screen and in the tray menu.
 - Tray visibility remains a Windows user preference: drag the icon out of the hidden-icons menu to keep it beside the clock.
 

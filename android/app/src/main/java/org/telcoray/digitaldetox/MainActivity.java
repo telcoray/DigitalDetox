@@ -151,7 +151,7 @@ public final class MainActivity extends Activity {
         add(card, rounds, 16);
         startPomodoro = button("Start Pomodoro", RED, () -> {
             if (ready()) confirm("Start Pomodoro? This phone will block during breaks.", "Start",
-                () -> publish(DetoxService.obj("kind", "pomodoro", "start", System.currentTimeMillis())));
+                () -> publish(DetoxService.obj("kind", "pomodoro", "start", Session.now())));
         });
         add(page, startPomodoro, 14);
         LinearLayout actions = row();
@@ -222,7 +222,7 @@ public final class MainActivity extends Activity {
             return;
         }
         confirm("Block this phone for " + value + " minutes?", "Start",
-            () -> publish(DetoxService.obj("kind", "detox", "ends_at", System.currentTimeMillis() + value * 60000L)));
+            () -> publish(DetoxService.obj("kind", "detox", "ends_at", Session.now() + value * 60000L)));
     }
 
     private int duration() {
@@ -237,7 +237,7 @@ public final class MainActivity extends Activity {
             return;
         }
         String time = android.text.format.DateFormat.getTimeFormat(this)
-            .format(new java.util.Date(System.currentTimeMillis() + value * 60000L));
+            .format(new java.util.Date(Session.now() + value * 60000L));
         unlock.setText("Unlocks at " + time);
     }
 
@@ -255,7 +255,7 @@ public final class MainActivity extends Activity {
         DetoxService s = service();
         if (s == null || s.locked() || !"pomodoro".equals(s.shared.optString("kind"))) return;
         long start = s.shared.optLong("start");
-        long now = System.currentTimeMillis();
+        long now = Session.now();
         JSONObject updated = s.shared.has("paused_at")
             ? DetoxService.obj("kind", "pomodoro", "start", start + Math.max(0, now - s.shared.optLong("paused_at")))
             : DetoxService.obj("kind", "pomodoro", "start", start, "paused_at", now);
@@ -378,7 +378,7 @@ public final class MainActivity extends Activity {
     private void refreshSession(DetoxService s) {
         boolean running = "pomodoro".equals(s.shared.optString("kind"));
         boolean paused = running && s.shared.has("paused_at");
-        Session.Phase current = Session.phase(s.shared, System.currentTimeMillis());
+        Session.Phase current = Session.phase(s.shared, Session.now());
         Session.Plan plan = Session.Plan.of(running ? s.shared : new JSONObject());
         int round = running ? current.round() : 1;
         countdown.setText(running ? Session.time(current.remaining()) : Session.time(plan.work()));

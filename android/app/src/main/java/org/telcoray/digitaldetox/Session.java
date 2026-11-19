@@ -3,6 +3,10 @@ import org.json.JSONObject;
 /** Pure scheduling logic, shared wall-clock schedule compatible with Windows (src/pomodoro.rs). */
 final class Session {
  static final long WORK=25*60000L, SHORT=5*60000L, LONG=15*60000L, CYCLE=130*60000L;
+ /** How far the time the paired devices agree on is from this device's clock (src/sync/clock.rs); set by DetoxService. */
+ static volatile long clockOffset;
+ /** The paired devices' agreed time: use it for every time that's shared with them. */
+ static long now(){return System.currentTimeMillis()+clockOffset;}
  record Phase(boolean locked,long remaining,int round,String key) {}
  /** The lengths chosen on the device that started the Pomodoro; the usual 25/5/15 × 4 if it didn't say. */
  record Plan(long work,long shortBreak,long longBreak,int rounds,int total) {

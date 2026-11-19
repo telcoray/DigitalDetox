@@ -1,5 +1,6 @@
 //! Copies the Sync worker of the Windows app (`src/sync`) for the Android build, so the protocol
-//! is never forked. Only the Windows-specific modules are swapped out: `config` (Java saves the
+//! is never forked (`mod.rs`, `protocol.rs` and `clock.rs`). Only the Windows-specific modules
+//! are swapped out: `config` (Java saves the
 //! settings) and `net` (Java finds the broadcast addresses, see `broadcasts` in lib.rs).
 
 use std::path::{Path, PathBuf};
@@ -20,6 +21,7 @@ fn main() {
     let root = Path::new("../../src/sync");
     println!("cargo:rerun-if-changed=../../src/sync/mod.rs");
     println!("cargo:rerun-if-changed=../../src/sync/protocol.rs");
+    println!("cargo:rerun-if-changed=../../src/sync/clock.rs");
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
 
     let mut worker = std::fs::read_to_string(root.join("mod.rs")).unwrap();
@@ -31,4 +33,5 @@ fn main() {
     }
     std::fs::write(out.join("sync.rs"), worker).unwrap();
     std::fs::copy(root.join("protocol.rs"), out.join("protocol.rs")).unwrap();
+    std::fs::copy(root.join("clock.rs"), out.join("clock.rs")).unwrap();
 }

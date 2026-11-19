@@ -119,6 +119,9 @@ pub enum Message {
         shared: Shared,
         #[serde(default)]
         reply: bool,
+        /// The sender's own clock when it sent this, see clock.rs. Older versions leave it out.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sent_at: Option<u64>,
     },
     /// Pairing, step 1 (the device where the code was typed): its half of the key exchange
     PairHello { pairing: u64, device: u64, name: String, spake: Vec<u8> },
@@ -266,6 +269,7 @@ mod tests {
             version: Version { time: 10, device: 1 },
             shared: Shared::Pomodoro { start: 123, paused_at: Some(456), plan: Plan { work: 50, ..Plan::default() } },
             reply: false,
+            sent_at: Some(1000),
         }
     }
 

@@ -141,7 +141,8 @@ fn handle(request: Value) -> Result<Value, String> {
         "cancel" => engine.net.cancel_pairing(),
         "poll" => {
             let events: Vec<Value> = engine.events.try_iter().map(event_to_json).collect();
-            return Ok(json!({ "events": events }));
+            // How far the paired devices' agreed time is from this phone's clock (clock.rs)
+            return Ok(json!({ "events": events, "clock_offset": sync::clock_offset_ms() }));
         }
         _ => return Err("unknown operation".into()),
     }

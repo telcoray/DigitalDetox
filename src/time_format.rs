@@ -16,11 +16,11 @@ pub fn short_time(time: chrono::DateTime<chrono::Local>) -> String {
     format(time, TIME_NOSECONDS, "%H:%M")
 }
 
-/// The current time as a Unix time in milliseconds, the format shared with paired devices
+/// The current time as a Unix time in milliseconds, the format shared with paired devices.
+/// It's the time the paired devices agree on, which may be a few seconds off this PC's clock
+/// (see sync/clock.rs).
 pub fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis() as u64)
+    crate::sync::now_ms()
 }
 
 /// Time left on a timer, e.g. "24:59" or "1:05:00". Rounded up, so it only shows 00:00 when the

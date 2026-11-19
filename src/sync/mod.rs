@@ -11,6 +11,7 @@
 //! sender: the pairing steps, and its own activity in reply to another device's. Decisions (which activity wins, when to lock) are made on the UI thread
 //! in main.rs, which talks to the thread through `Sync` and receives `Event`s.
 
+mod clock;
 mod config;
 mod net;
 mod protocol;
@@ -22,6 +23,10 @@ use std::time::{Duration, Instant};
 
 use spake2::{Ed25519Group, Spake2};
 
+pub use clock::now_ms;
+// For the Android build, which passes it on to Java
+#[allow(unused_imports)]
+pub use clock::offset_ms as clock_offset_ms;
 pub use config::Config;
 pub use protocol::{Group, Plan, Shared, Version, random_code};
 use protocol::{Message, PORT};
@@ -85,6 +90,7 @@ impl Sync {
             broadcast_refreshed: None,
             known: HashMap::new(),
             last_announce: None,
+            clocks: clock::Clocks::default(),
         };
         std::thread::spawn(move || worker.run(receiver, on_event));
         log!("[sync] listening on UDP port {PORT}");
@@ -157,6 +163,8 @@ struct Worker {
     // Addresses of the devices heard from, and when
     known: HashMap<SocketAddr, Instant>,
     last_announce: Option<Instant>,
+    // How far the paired devices' clocks are from this one's
+    clocks: clock::Clocks,
 }
 
 impl Worker {
@@ -172,8 +180,9 @@ impl Worker {
                 }
             }
             if let Ok((len, from)) = self.socket.recv_from(&mut buffer) {
+                let received_at = clock::system_ms();
                 let packet = buffer[..len].to_vec();
-                if let Some(event) = self.receive(&packet, from) {
+                if let Some(event) = self.receive(&packet, from, received_at) {
                     on_event(event);
                 }
             }
@@ -217,15 +226,20 @@ impl Worker {
         }
     }
 
-    fn receive(&mut self, packet: &[u8], from: SocketAddr) -> Option<Event> {
+    fn receive(&mut self, packet: &[u8], from: SocketAddr, received_at: u64) -> Option<Event> {
         let key = self.group.as_ref().map(|g| g.key);
         match protocol::decode(packet, key.as_ref())? {
-            Message::State { group, device, name, version, shared, reply } => {
+            Message::State { group, device, name, version, shared, reply, sent_at } => {
                 let ours = self.group.as_ref().is_some_and(|g| g.id == group);
                 if !ours || device == self.device {
                     return None;
                 }
                 self.known.insert(from, Instant::now());
+                if let Some(sent_at) = sent_at
+                    && self.enabled
+                {
+                    self.clocks.heard(device, sent_at, received_at);
+                }
                 if !reply {
                     self.reply_state(from);
                 }
@@ -339,6 +353,11 @@ impl Worker {
         }
         if self.last_announce.is_none_or(|t| now - t >= ANNOUNCE_EVERY) {
             self.announce();
+            if self.enabled && self.group.is_some() {
+                self.clocks.update();
+            } else {
+                self.clocks.clear();
+            }
         }
         event
     }
@@ -361,8 +380,15 @@ impl Worker {
         let (Some(group), Some((version, shared)), true) = (&self.group, self.current, self.enabled) else {
             return None;
         };
-        let message =
-            Message::State { group: group.id, device: self.device, name: self.name.clone(), version, shared, reply };
+        let message = Message::State {
+            group: group.id,
+            device: self.device,
+            name: self.name.clone(),
+            version,
+            shared,
+            reply,
+            sent_at: Some(clock::system_ms()),
+        };
         Some(protocol::encode_signed(&message, &group.key))
     }
 

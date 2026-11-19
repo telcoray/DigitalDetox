@@ -26,7 +26,7 @@ public final class DetoxService extends Service {
   syncEnabled=p.getBoolean("sync",false);version=p.getLong("version",0);author=p.getString("author","0");escaped=p.getString("escaped","");
   try{shared=new JSONObject(p.getString("shared","{\"kind\":\"idle\"}"));}catch(Exception e){shared=obj("kind","idle");}
   try{if(p.contains("pending"))pending=new JSONObject(p.getString("pending","{}"));}catch(Exception ignored){}
-  String savedKey=p.getString("lockKey","");long savedEnd=p.getLong("wallEnd",0);if(savedEnd>System.currentTimeMillis()){lockKey=savedKey;wallEnd=savedEnd;lockUntil=SystemClock.elapsedRealtime()+Math.min(999*60000L,savedEnd-System.currentTimeMillis());}
+  String savedKey=p.getString("lockKey","");long savedEnd=p.getLong("wallEnd",0);if(savedEnd>Session.now()){lockKey=savedKey;wallEnd=savedEnd;lockUntil=SystemClock.elapsedRealtime()+Math.min(999*60000L,savedEnd-Session.now());}
   initSync();handler.post(tick);
  }
  void initSync(){try{JSONArray a=new JSONArray();a.put("255.255.255.255");for(NetworkInterface n:Collections.list(NetworkInterface.getNetworkInterfaces()))if(n.isUp()&&!n.isLoopback())for(InterfaceAddress i:n.getInterfaceAddresses())if(i.getBroadcast()!=null)a.put(i.getBroadcast().getHostAddress());String g=Vault.load(this);JSONObject r=rpc(obj("op","init","device",device,"name",Build.MANUFACTURER+" "+Build.MODEL,"addresses",a,"group",g==null?JSONObject.NULL:new JSONObject(g),"enabled",syncEnabled));nativeReady=!r.has("error");
@@ -34,8 +34,8 @@ public final class DetoxService extends Service {
   }catch(Exception e){status="Pairing needs setup again: "+e.getMessage();syncEnabled=false;}}
  Notification notification(String text){PendingIntent pi=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE);return new Notification.Builder(this,"session").setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentTitle("Digital Detox").setContentText(text).setContentIntent(pi).setOngoing(true).build();}
  final Runnable tick=new Runnable(){public void run(){try{
-  if(nativeReady){JSONArray events=rpc(obj("op","poll")).optJSONArray("events");if(events!=null)for(int i=0;i<events.length();i++)event(events.getJSONObject(i));}
-  if(lockUntil==0&&pending!=null){shared=pending;pending=null;save();}long now=System.currentTimeMillis();
+  if(nativeReady){JSONObject polled=rpc(obj("op","poll"));Session.clockOffset=polled.optLong("clock_offset",0);JSONArray events=polled.optJSONArray("events");if(events!=null)for(int i=0;i<events.length();i++)event(events.getJSONObject(i));}
+  if(lockUntil==0&&pending!=null){shared=pending;pending=null;save();}long now=Session.now();
   if(lockUntil>0&&SystemClock.elapsedRealtime()>=lockUntil){escaped=lockKey;lockUntil=0;wallEnd=0;lockKey="";if(pending!=null){shared=pending;pending=null;}save();}
   Session.Phase p=Session.phase(shared,now);
   // A Pomodoro with a set number of rounds is over: back to idle, like the device that started it
@@ -51,7 +51,7 @@ public final class DetoxService extends Service {
  }
  void send(JSONObject s){if(nativeReady)rpc(obj("op","publish","time",version,"device",author,"shared",s));}
  void sendState(){send(pending==null?shared:pending);}
- void publish(JSONObject s){if(locked())return;shared=s;pending=null;version=System.currentTimeMillis();author=device;escaped="";save();sendState();}
+ void publish(JSONObject s){if(locked())return;shared=s;pending=null;version=Session.now();author=device;escaped="";save();sendState();}
  void save(){getSharedPreferences("session",0).edit().putString("shared",shared.toString()).putString("pending",pending==null?null:pending.toString()).putLong("version",version).putString("author",author).putBoolean("sync",syncEnabled).putString("escaped",escaped).putLong("wallEnd",wallEnd).putString("lockKey",lockKey).commit();}
  void emergency(){escaped=lockKey;lockUntil=0;wallEnd=0;lockKey="";if(pending!=null){shared=pending;pending=null;}save();if(BlockService.instance!=null)BlockService.instance.refresh();}
  void setSync(boolean enabled){if(locked())return;syncEnabled=enabled;rpc(obj("op","enable","enabled",enabled));if(multicast!=null){if(enabled&&!multicast.isHeld())multicast.acquire();if(!enabled&&multicast.isHeld())multicast.release();}save();}
