@@ -55,6 +55,10 @@ impl Sharing {
             pairing: Cell::new(Pairing::None),
         }
     }
+
+    fn is_online(&self, device: u64) -> bool {
+        self.seen.borrow().get(&device).is_some_and(|t| t.elapsed() < ONLINE_FOR)
+    }
 }
 
 /// Connects the Sync tab, and starts listening if this device is already paired
@@ -101,7 +105,7 @@ pub fn on_event(app: &Rc<App>, event: Event) {
         Event::Remote { device, name, version, shared } => {
             sharing.seen.borrow_mut().insert(device, Instant::now());
             let mut config = sharing.config.borrow_mut();
-            if config.remember_peer(device, &name) {
+            if config.remember_peer(device, &name, |id| sharing.is_online(id)) {
                 config.save();
             }
             let enabled = config.enabled;
@@ -127,7 +131,7 @@ pub fn on_event(app: &Rc<App>, event: Event) {
                 // The device where the code was typed joins the other's group
                 config.set_group(Some(group));
             }
-            config.remember_peer(device, &name);
+            config.remember_peer(device, &name, |id| sharing.is_online(id));
             config.enabled = true;
             config.save();
             drop(config);
@@ -293,13 +297,12 @@ fn set_pairing(app: &App, pairing: Pairing, status: &str) {
 /// Refreshes the Sync tab and the tray menu
 pub fn update_view(app: &App) {
     let config = app.sharing.config.borrow();
-    let seen = app.sharing.seen.borrow();
     let devices: Vec<SyncDevice> = config
         .peers
         .iter()
         .map(|peer| SyncDevice {
             name: SharedString::from(peer.name.as_str()),
-            online: seen.get(&peer.id).is_some_and(|t| t.elapsed() < ONLINE_FOR),
+            online: app.sharing.is_online(peer.id),
         })
         .collect();
     let has_group = config.group().is_some();

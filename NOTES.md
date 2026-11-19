@@ -40,6 +40,10 @@ _Last updated: 2026-11-19_
   Android reads it in Session.java, keeps it on pause/resume, goes idle when done; it can't edit
   a plan yet (always starts 25/5/15 × 4). User tested a 1/1/2-minute, 3-round plan on the PC (it
   stops by itself) and "Back to the usual"; not yet tested on the phone or with a paired PC.
+- Sync with four devices (PC, laptop, phone, tablet, using the debug APK on both Android
+  devices) tested by the user: a 1-minute lock reached all four. A reinstalled device comes back
+  with a new id. The Sync list now drops entries with the same name that aren't online
+  (`Config::remember_peer`), so the old one doesn't stay "offline" forever. User confirmed this.
 - "Start on its own each day" switch is now on the Pomodoro tab's first screen and in the tray menu.
 - Tray visibility remains a Windows user preference: drag the icon out of the hidden-icons menu to keep it beside the clock.
 

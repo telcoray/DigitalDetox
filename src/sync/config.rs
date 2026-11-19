@@ -62,18 +62,26 @@ impl Config {
     }
 
     /// Adds the device to the list, or updates its name. Returns true if anything changed.
-    pub fn remember_peer(&mut self, id: u64, name: &str) -> bool {
+    ///
+    /// A device that's reinstalled comes back with a new id but the same name: other entries
+    /// with that name that aren't `online` are dropped, so the old one doesn't stay "offline"
+    /// forever. Two devices with the same name that are both on keep their own entries.
+    pub fn remember_peer(&mut self, id: u64, name: &str, online: impl Fn(u64) -> bool) -> bool {
+        let before = self.peers.len();
+        self.peers.retain(|p| p.id == id || p.name != name || online(p.id));
+        let mut changed = self.peers.len() != before;
         match self.peers.iter_mut().find(|p| p.id == id) {
-            Some(peer) if peer.name == name => false,
+            Some(peer) if peer.name == name => {}
             Some(peer) => {
                 peer.name = name.to_owned();
-                true
+                changed = true;
             }
             None => {
                 self.peers.push(Peer { id, name: name.to_owned() });
-                true
+                changed = true;
             }
         }
+        changed
     }
 }
 
@@ -129,5 +137,21 @@ mod tests {
         config.set_group(Some(&group));
         assert_ne!(config.group_key.as_deref(), Some(to_hex(&group.key).as_str()));
         assert_eq!(config.group(), Some(group));
+    }
+
+    #[test]
+    fn a_reinstalled_device_replaces_its_old_entry() {
+        let mut config = Config::default();
+        let never = |_| false;
+        assert!(config.remember_peer(1, "Phone", never));
+        assert!(config.remember_peer(2, "Laptop", never));
+        assert!(!config.remember_peer(1, "Phone", never));
+        // Same name, new id, the old one silent: replaced
+        assert!(config.remember_peer(3, "Phone", never));
+        let ids: Vec<u64> = config.peers.iter().map(|p| p.id).collect();
+        assert_eq!(ids, [2, 3]);
+        // Two devices with the same name, both on: both kept
+        assert!(config.remember_peer(4, "Phone", |id| id == 3));
+        assert_eq!(config.peers.len(), 3);
     }
 }
