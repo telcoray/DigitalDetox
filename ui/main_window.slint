@@ -768,12 +768,15 @@ export component MainWindow inherits Window {
         width: 48px;
         height: 24px;
 
+        // In the tab's color, like the selected tab
         Path {
-            width: 14px;
-            height: 7px;
-            commands: "M 0 0 L 7 6 L 14 0";
-            stroke: more-touch.has-hover ? Theme.faint : Theme.outline-hover;
-            stroke-width: 1.5px;
+            width: 18px;
+            height: 9px;
+            commands: "M 0 0 L 9 8 L 18 0";
+            stroke: root.tab == 1
+                ? (more-touch.has-hover ? Theme.tomato-hover : Theme.tomato)
+                : (more-touch.has-hover ? Theme.accent-hover : Theme.accent);
+            stroke-width: 2px;
         }
 
         more-touch := TouchArea {
