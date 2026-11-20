@@ -3,8 +3,10 @@
 Android 11+ / ARM64. First test device: HONOR 400 Lite, Android 16.
 
 This is a test APK, not a published F-Droid release. It implements Detox, the Windows-compatible
-25/5/15 Pomodoro schedule, pause/resume, a blocking accessibility overlay, an intentional local
-emergency exit, optional device-administrator uninstall friction and local-network Sync.
+Pomodoro schedule (25/5/15 or your own times and rounds), pause/resume, a Pomodoro that starts on
+its own on chosen days after a chosen time (on the phone only), detoxes at set times (Schedule
+tab), a blocking accessibility overlay, an intentional local emergency exit, optional
+device-administrator uninstall friction and local-network Sync.
 The UI is currently English. No Google Play Services, advertising, analytics or cloud backend.
 
 ## Build from source

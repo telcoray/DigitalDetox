@@ -37,16 +37,22 @@ final class PomodoroSettings {
 
     static void setFrom(Context c, int minutes) { prefs(c).edit().putInt("from", minutes).apply(); }
 
+    /** The days it starts on: bits from Monday (bit 0) to Sunday (bit 6), as in Schedule */
+    static int days(Context c) { return prefs(c).getInt("days", Schedule.EVERY_DAY); }
+
+    static void setDays(Context c, int days) { prefs(c).edit().putInt("days", days).apply(); }
+
     /** Offered (or found running) today: not again until tomorrow */
     static void markDone(Context c, LocalDate today) { prefs(c).edit().putString("done", today.toString()).apply(); }
 
     static boolean due(Context c, LocalDateTime now) {
-        return due(auto(c), prefs(c).getString("done", ""), from(c), now);
+        return due(auto(c), days(c), prefs(c).getString("done", ""), from(c), now);
     }
 
-    /** Pure, for the tests: on, not yet today, and past the chosen time */
-    static boolean due(boolean auto, String done, int from, LocalDateTime now) {
-        return auto && !now.toLocalDate().toString().equals(done) && now.getHour() * 60 + now.getMinute() >= from;
+    /** Pure, for the tests: on, one of the chosen days, not yet today, and past the chosen time */
+    static boolean due(boolean auto, int days, String done, int from, LocalDateTime now) {
+        boolean today = (days >> (now.getDayOfWeek().getValue() - 1) & 1) == 1;
+        return auto && today && !now.toLocalDate().toString().equals(done) && now.getHour() * 60 + now.getMinute() >= from;
     }
 
     /** E.g. "08:00" */

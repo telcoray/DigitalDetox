@@ -48,6 +48,8 @@ public final class MainActivity extends Activity {
     private Button pause, stop, startPomodoro, sync, changeTimes, fromButton;
     private TextView planSummary, dailyHint;
     private android.widget.Switch daily;
+    private LinearLayout scheduleList;
+    private Button addTime;
     private EditText minutes;
     private int selected;
 
@@ -77,7 +79,7 @@ public final class MainActivity extends Activity {
         LinearLayout nav = row();
         nav.setPadding(dp(4), dp(4), dp(4), dp(4));
         nav.setBackground(shape(PANEL, 17, EDGE));
-        String[] names = {"Detox", "Pomodoro", "Sync"};
+        String[] names = {"Detox", "Pomodoro", "Schedule", "Sync"};
         for (int i = 0; i < names.length; i++) {
             int index = i;
             Button tab = button(names[i], PANEL, () -> select(index));
@@ -93,6 +95,7 @@ public final class MainActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         pages.add(detoxPage());
         pages.add(pomodoroPage());
+        pages.add(schedulePage());
         pages.add(syncPage());
         for (LinearLayout page : pages) stack.addView(page);
         select(state == null ? 0 : state.getInt("tab"));
@@ -190,6 +193,11 @@ public final class MainActivity extends Activity {
         fromButton = button("", BG, this::chooseFrom);
         fromRow.addView(fromButton, new LinearLayout.LayoutParams(dp(110), -2));
         add(card2, fromRow, 10);
+        int[] days = {PomodoroSettings.days(this)};
+        add(card2, dayChips(days, () -> {
+            PomodoroSettings.setDays(this, days[0]);
+            updateDaily();
+        }), 10);
         dailyHint = label("", 14, MUTED);
         add(card2, dailyHint, 10);
         updateDaily();
@@ -201,9 +209,9 @@ public final class MainActivity extends Activity {
         fromButton.setText(PomodoroSettings.timeText(from));
         fromButton.setEnabled(daily.isChecked());
         fromButton.setAlpha(daily.isChecked() ? 1f : 0.5f);
-        dailyHint.setText("The first time you unlock the phone after " + PomodoroSettings.timeText(from)
-            + ", a notification counts down 30 seconds, then a Pomodoro starts on this phone only."
-            + " Using the phone earlier doesn't count.");
+        dailyHint.setText(Schedule.daysText(PomodoroSettings.days(this)) + ", the first time you unlock the phone after "
+            + PomodoroSettings.timeText(from) + ", a notification counts down 30 seconds, then a Pomodoro starts"
+            + " on this phone only. Using the phone earlier doesn't count.");
     }
 
     private void chooseFrom() {
@@ -212,6 +220,120 @@ public final class MainActivity extends Activity {
             PomodoroSettings.setFrom(this, hour * 60 + minute);
             updateDaily();
         }, from / 60, from % 60, android.text.format.DateFormat.is24HourFormat(this)).show();
+    }
+
+    /** A row of day buttons, Monday first; `days` holds the bits (see Schedule) and is changed in place */
+    private LinearLayout dayChips(int[] days, Runnable changed) {
+        LinearLayout chips = row();
+        for (int i = 0; i < 7; i++) {
+            int bit = 1 << i;
+            Button chip = button(Schedule.DAY_NAMES[i], BG, () -> {});
+            chip.setTextSize(13);
+            chip.setPadding(0, dp(6), 0, dp(6));
+            Runnable style = () -> {
+                boolean on = (days[0] & bit) != 0;
+                chip.setBackground(ripple(on ? 0xff253951 : BG, 11, on ? BLUE : EDGE));
+                chip.setTextColor(on ? WHITE : MUTED);
+            };
+            style.run();
+            chip.setOnClickListener(v -> {
+                days[0] ^= bit;
+                style.run();
+                changed.run();
+            });
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(42), 1);
+            params.setMargins(dp(2), 0, dp(2), 0);
+            chips.addView(chip, params);
+        }
+        return chips;
+    }
+
+    // The Schedule tab: detoxes at set times (see Schedule and DetoxService.checkSchedule)
+    private LinearLayout schedulePage() {
+        LinearLayout page = page("Detox at set times", "This phone locks at these times, on the days you choose.");
+        scheduleList = column();
+        add(page, scheduleList, 0);
+        addTime = button("Add a time", BLUE, () -> editTime(-1));
+        add(page, addTime, 18);
+        add(page, label("A notification warns you a minute before, with Start now and Skip. Set times lock"
+            + " this phone only, and are skipped during a Pomodoro, which has breaks of its own.", 14, MUTED), 14);
+        updateSchedule();
+        return page;
+    }
+
+    private void updateSchedule() {
+        scheduleList.removeAllViews();
+        List<Schedule.Time> times = Schedule.load(this);
+        if (times.isEmpty()) add(scheduleList, label("No set times yet.", 16, MUTED), 18);
+        for (int i = 0; i < times.size(); i++) {
+            Schedule.Time time = times.get(i);
+            int index = i;
+            LinearLayout card = card(scheduleList);
+            LinearLayout line = row();
+            LinearLayout text = column();
+            text.addView(label(PomodoroSettings.timeText(time.hour() * 60 + time.minute()), 26, WHITE));
+            text.addView(label(Schedule.daysText(time.days()) + "  ·  for " + time.minutes() + " min", 14, MUTED));
+            line.addView(text, new LinearLayout.LayoutParams(0, -2, 1));
+            line.addView(button("Edit", PANEL, () -> editTime(index)), new LinearLayout.LayoutParams(dp(72), -2));
+            LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(dp(88), -2);
+            right.leftMargin = dp(6);
+            line.addView(button("Remove", PANEL, () -> {
+                List<Schedule.Time> list = Schedule.load(this);
+                if (index < list.size()) list.remove(index);
+                Schedule.save(this, list);
+                updateSchedule();
+            }), right);
+            card.addView(line);
+        }
+        addTime.setVisibility(times.size() < Schedule.MAX ? View.VISIBLE : View.GONE);
+    }
+
+    /** Adds a set time (`index` -1) or changes one */
+    private void editTime(int index) {
+        List<Schedule.Time> times = Schedule.load(this);
+        Schedule.Time old = index >= 0 && index < times.size() ? times.get(index) : new Schedule.Time(13, 0, 30, Schedule.EVERY_DAY);
+        int[] clock = {old.hour() * 60 + old.minute()};
+        int[] days = {old.days()};
+        LinearLayout box = column();
+        box.setPadding(dp(22), dp(8), dp(22), 0);
+        add(box, label("Time", 14, MUTED), 0);
+        Button timeButton = button(PomodoroSettings.timeText(clock[0]), BG, () -> {});
+        timeButton.setTextSize(22);
+        timeButton.setOnClickListener(v -> new android.app.TimePickerDialog(this, (picker, hour, minute) -> {
+            clock[0] = hour * 60 + minute;
+            timeButton.setText(PomodoroSettings.timeText(clock[0]));
+        }, clock[0] / 60, clock[0] % 60, android.text.format.DateFormat.is24HourFormat(this)).show());
+        add(box, timeButton, 4);
+        add(box, label("Minutes", 14, MUTED), 12);
+        EditText length = numberField(Integer.toString(old.minutes()), "1–999", 3);
+        add(box, length, 4);
+        add(box, label("Days", 14, MUTED), 12);
+        TextView daysError = label("", 13, RED);
+        add(box, dayChips(days, () -> daysError.setText("")), 4);
+        add(box, daysError, 4);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(index >= 0 ? "Change the time" : "Add a time")
+            .setView(box).setPositiveButton("Save", null).setNegativeButton("Cancel", null).create();
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            int minutes;
+            try { minutes = Integer.parseInt(length.getText().toString().trim()); }
+            catch (NumberFormatException e) { minutes = 0; }
+            if (minutes < 1 || minutes > 999) {
+                length.setError("A number from 1 to 999");
+                return;
+            }
+            if (days[0] == 0) {
+                daysError.setText("Pick at least one day");
+                return;
+            }
+            Schedule.Time time = new Schedule.Time(clock[0] / 60, clock[0] % 60, minutes, days[0]);
+            List<Schedule.Time> list = Schedule.load(this);
+            if (index >= 0 && index < list.size()) list.set(index, time);
+            else if (list.size() < Schedule.MAX) list.add(time);
+            Schedule.save(this, list);
+            updateSchedule();
+            dialog.dismiss();
+        }));
+        dialog.show();
     }
 
     /** "Change times": the same choices as in the Windows app, with the same limits */

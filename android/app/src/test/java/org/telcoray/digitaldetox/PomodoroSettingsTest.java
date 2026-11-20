@@ -8,20 +8,26 @@ import java.time.LocalDateTime;
 import org.junit.Test;
 
 public final class PomodoroSettingsTest {
+    private static final int EIGHT = 8 * 60, ALL = Schedule.EVERY_DAY, WEEKDAYS = 0b001_1111;
+
     private static LocalDateTime at(String text) { return LocalDateTime.parse(text); }
 
     @Test public void startsOnlyAfterTheChosenTime() {
-        int eight = 8 * 60;
-        // Using the phone in the morning doesn't count
-        assertFalse(PomodoroSettings.due(true, "", eight, at("2026-11-20T07:59")));
-        assertTrue(PomodoroSettings.due(true, "", eight, at("2026-11-20T08:00")));
-        assertTrue(PomodoroSettings.due(true, "2026-11-19", eight, at("2026-11-20T14:30")));
+        // 2026-11-20 is a Friday. Using the phone in the morning doesn't count.
+        assertFalse(PomodoroSettings.due(true, ALL, "", EIGHT, at("2026-11-20T07:59")));
+        assertTrue(PomodoroSettings.due(true, ALL, "", EIGHT, at("2026-11-20T08:00")));
+        assertTrue(PomodoroSettings.due(true, ALL, "2026-11-19", EIGHT, at("2026-11-20T14:30")));
     }
 
     @Test public void onceADayAndOnlyWhenOn() {
-        int eight = 8 * 60;
-        assertFalse(PomodoroSettings.due(true, "2026-11-20", eight, at("2026-11-20T09:00")));
-        assertFalse(PomodoroSettings.due(false, "", eight, at("2026-11-20T09:00")));
+        assertFalse(PomodoroSettings.due(true, ALL, "2026-11-20", EIGHT, at("2026-11-20T09:00")));
+        assertFalse(PomodoroSettings.due(false, ALL, "", EIGHT, at("2026-11-20T09:00")));
+    }
+
+    @Test public void onlyOnTheChosenDays() {
+        assertTrue(PomodoroSettings.due(true, WEEKDAYS, "", EIGHT, at("2026-11-20T09:00")));
+        // Saturday
+        assertFalse(PomodoroSettings.due(true, WEEKDAYS, "", EIGHT, at("2026-11-21T09:00")));
     }
 
     @Test public void showsTimesWithTwoDigits() {

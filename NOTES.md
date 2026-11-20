@@ -20,11 +20,12 @@ _Last updated: 2026-11-20_
   setting. Tested by the user.
 - "Start on its own each day" (Pomodoro tab, off by default, saved in settings.json): on the first
   use of each day (day starts at 5:00; input in the last minute, past the Windows lock screen) a
-  corner card counts down 30 s, then starts a Pomodoro on this PC only (user's choice: not sent
-  to paired devices; a paired device's Idle doesn't stop it). User tested the card and the
-  automatic start; not yet checked that laptop and phone stay untouched. A Pomodoro left paused
-  since an earlier day (e.g. paused on the phone at 1:25) no longer blocks it: it's stopped, and
-  paired devices with it, when today's starts (after 2.9.0; not yet tested by the user).
+  corner card counts down 30 s, then starts a Pomodoro. User tested the card and the automatic
+  start. After 2.9.0 (user's choice, 2026-11-20) it's shared like any Pomodoro: the PC's or
+  laptop's daily Pomodoro starts on every paired device, while the phone's stays on the phone.
+  So every Pomodoro on Windows is shared now (`PomodoroRun::shared` was removed). A Pomodoro left
+  paused since an earlier day (e.g. paused on the phone at 1:25) no longer blocks it: today's
+  replaces it. Both not yet tested.
 - Android: after "Set up blocking", a step-by-step guide for apps installed from a file (Android
   13+ "restricted settings": tap the grey switch, App info → ⋮ → Allow restricted settings).
   After 2.9.0; not yet tested. A signed APK without a release: run the Release workflow by hand,
@@ -36,6 +37,11 @@ _Last updated: 2026-11-20_
   counting down 30 s ("Start now" / "Not today"), then a Pomodoro starts on the phone only
   (`DetoxService.local`: kept out of sync, like Windows' unshared daily Pomodoro). Windows keeps
   its fixed 5:00 day start: the user doesn't want the "From" time on the PC.
+  User tested: custom times from the phone are followed by the PC; the daily start works (the
+  notification wasn't noticed: Honor shows new channels without a banner).
+- Android, after that (not yet tested): days of the week for the daily Pomodoro, and a Schedule
+  tab like Windows' (up to 4 set times with days, notification a minute before with Start now /
+  Skip, then a detox on this phone only, `publishLocal`; skipped during a Pomodoro).
 - New Schedule tab (tabs are now 0 Detox, 1 Pomodoro, 2 Schedule, 3 Sync), since 2.9.0:
   - set times (schedule.rs): up to 4 detoxes, e.g. 13:00 for 30 min, each on chosen weekdays
     (bitmask in settings.json, Monday = bit 0; older entries default to every day); a corner card counts

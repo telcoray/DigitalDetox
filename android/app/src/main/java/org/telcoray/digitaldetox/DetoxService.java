@@ -19,14 +19,16 @@ public final class DetoxService extends Service {
  boolean local;
  // While the daily Pomodoro's notification counts down (elapsedRealtime), else 0
  long offerUntil;
- static final String START_DAILY="start_daily", NOT_TODAY="not_today";
+ static final String START_DAILY="start_daily", NOT_TODAY="not_today", START_SET_TIME="start_set_time", SKIP_SET_TIME="skip_set_time";
+ // The set time (Schedule tab) whose warning is showing, else null
+ Schedule.Due setTime;
  final Map<String,String> peers=new LinkedHashMap<>();final Map<String,Long> seen=new HashMap<>();
  WifiManager.MulticastLock multicast;
  static JSONObject obj(Object... values){JSONObject o=new JSONObject();try{for(int i=0;i<values.length;i+=2)o.put((String)values[i],values[i+1]);}catch(JSONException e){throw new IllegalArgumentException(e);}return o;}
  JSONObject rpc(JSONObject o){try{JSONObject r=new JSONObject(NativeSync.call(o.toString()));if(r.has("error"))status=r.optString("error");return r;}catch(Exception|LinkageError e){status="Sync unavailable: "+e.getMessage();return obj("error",status);}}
  @Override public void onCreate(){super.onCreate();instance=this;
   getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("session","Detox and Sync",NotificationManager.IMPORTANCE_LOW));
-  getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("daily","Daily Pomodoro",NotificationManager.IMPORTANCE_HIGH));
+  getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("daily","Daily Pomodoro and set times",NotificationManager.IMPORTANCE_HIGH));
   startForeground(1,notification("Digital Detox is ready"));
   var p=getSharedPreferences("session",0);device=p.getString("device",null);if(device==null){device=new BigInteger(64,new SecureRandom()).toString();p.edit().putString("device",device).commit();}
   syncEnabled=p.getBoolean("sync",false);version=p.getLong("version",0);author=p.getString("author","0");escaped=p.getString("escaped","");local=p.getBoolean("local",false);
@@ -47,6 +49,7 @@ public final class DetoxService extends Service {
   // A Pomodoro with a set number of rounds is over: back to idle, like the device that started it
   if(lockUntil==0&&p.key().equals("done")){update(obj("kind","idle"));p=Session.phase(shared,now);}
   checkDaily();
+  checkSchedule();
   if(lockUntil==0&&p.locked()&&!p.key().equals(escaped)&&p.remaining()>=5000&&BlockService.instance!=null){lockKey=p.key();wallEnd=now+Math.min(p.remaining(),999*60000L);lockUntil=SystemClock.elapsedRealtime()+(wallEnd-now);save();}
   if(BlockService.instance!=null)BlockService.instance.refresh();
   getSystemService(NotificationManager.class).notify(1,notification(locked()?"Detox · "+Session.time(remaining()):shared.optString("kind").equals("pomodoro")?"Pomodoro · "+Session.time(p.remaining()):syncEnabled?"Sync enabled on your local network":"Ready"));
@@ -69,7 +72,40 @@ public final class DetoxService extends Service {
  void join(String c){rpc(obj("op","join","code",c));status="Looking for the device showing the code…";}
  void invite(){try{if(Vault.load(this)==null){byte[] k=new byte[32];new SecureRandom().nextBytes(k);JSONArray bytes=new JSONArray();for(byte b:k)bytes.put(b&255);JSONObject g=obj("id",new BigInteger(64,new SecureRandom()).toString(),"key",bytes);Vault.save(this,g.toString());rpc(obj("op","group","group",g));}code=rpc(obj("op","invite")).optString("code");status="Code valid for two minutes";}catch(Exception e){status=e.getMessage();}}
  void unpair(){if(locked())return;setSync(false);rpc(obj("op","cancel"));rpc(obj("op","group","group",JSONObject.NULL));Vault.clear(this);peers.clear();code="";status="Unpaired";}
- @Override public int onStartCommand(Intent i,int f,int id){String a=i==null?null:i.getAction();if(START_DAILY.equals(a)){if(offerUntil>0)startDaily();}else if(NOT_TODAY.equals(a))cancelOffer();return START_STICKY;}
+ @Override public int onStartCommand(Intent i,int f,int id){String a=i==null?null:i.getAction();if(START_DAILY.equals(a)){if(offerUntil>0)startDaily();}else if(NOT_TODAY.equals(a))cancelOffer();
+  else if(START_SET_TIME.equals(a)){if(setTime!=null)startSetTime(setTime);}else if(SKIP_SET_TIME.equals(a)){if(setTime!=null)handled(setTime);}
+  return START_STICKY;}
+
+ // The Schedule tab: a notification a minute before a set time, then this phone locks (this
+ // phone only, like on Windows). Skipped during a detox or a Pomodoro, which has breaks of its own.
+ void checkSchedule(){
+  var prefs=getSharedPreferences("schedule",0);
+  java.time.LocalDateTime now=java.time.LocalDateTime.now();
+  Schedule.Due due=Schedule.due(Schedule.load(this),now,prefs.getString("handled",""));
+  if(due==null){if(setTime!=null){setTime=null;getSystemService(NotificationManager.class).cancel(3);}return;}
+  if(locked()||running()){handled(due);return;}
+  long until=java.time.Duration.between(now,due.at()).toMillis();
+  if(until<=0){startSetTime(due);return;}
+  setTime=due;
+  PendingIntent start=PendingIntent.getService(this,3,new Intent(this,DetoxService.class).setAction(START_SET_TIME),PendingIntent.FLAG_IMMUTABLE);
+  PendingIntent skip=PendingIntent.getService(this,4,new Intent(this,DetoxService.class).setAction(SKIP_SET_TIME),PendingIntent.FLAG_IMMUTABLE);
+  PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE);
+  getSystemService(NotificationManager.class).notify(3,new Notification.Builder(this,"daily").setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+   .setContentTitle("Detox at "+PomodoroSettings.timeText(due.at().getHour()*60+due.at().getMinute()))
+   .setContentText("Locks in "+(until+999)/1000+" s, for "+due.minutes()+" minutes.").setContentIntent(open)
+   .setOnlyAlertOnce(true).setOngoing(true).addAction(new Notification.Action.Builder(null,"Start now",start).build())
+   .addAction(new Notification.Action.Builder(null,"Skip",skip).build()).build());
+ }
+ /** Done with this set time: started, skipped, or let go */
+ void handled(Schedule.Due due){
+  getSharedPreferences("schedule",0).edit().putString("handled",due.key()).apply();
+  setTime=null;getSystemService(NotificationManager.class).cancel(3);
+ }
+ void startSetTime(Schedule.Due due){
+  handled(due);
+  if(locked()||running())return;
+  publishLocal(obj("kind","detox","ends_at",Session.now()+due.minutes()*60000L));
+ }
 
  // "Start on its own each day" (see PomodoroSettings): the first time the phone is unlocked
  // after the chosen time, a notification counts down 30 s, then a Pomodoro starts here only.
