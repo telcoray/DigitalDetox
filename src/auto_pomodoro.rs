@@ -68,8 +68,9 @@ fn check(app: &Rc<App>) {
             return;
         }
     }
-    // Already started today, by hand or by a paired device: nothing left to offer
-    if app.pomodoro.borrow().is_some() {
+    // Already started today, by hand or by a paired device: nothing left to offer. One left
+    // paused since an earlier day doesn't count: today's replaces it.
+    if app.pomodoro.borrow().is_some() && !left_paused(app, &today) {
         return mark_done(app, today);
     }
     if app.session.borrow().is_some() || crate::card_shown(app) {
@@ -81,6 +82,17 @@ fn check(app: &Rc<App>) {
     }
     mark_done(app, today);
     offer(app);
+}
+
+/// A Pomodoro paused on an earlier day and never resumed
+fn left_paused(app: &App, today: &str) -> bool {
+    let paused_at = app.pomodoro.borrow().as_ref().and_then(|run| run.tracker.paused_at());
+    paused_at.is_some_and(|ms| day_of_ms(ms).is_some_and(|day| day != today))
+}
+
+fn day_of_ms(ms: u64) -> Option<String> {
+    let time = chrono::DateTime::from_timestamp_millis(i64::try_from(ms).ok()?)?;
+    Some(day_of(time.with_timezone(&chrono::Local).naive_local()))
 }
 
 /// Offered (or running) today: not again until tomorrow, even after a restart
@@ -115,7 +127,8 @@ fn countdown_text(left: Duration) -> String {
 fn tick(app: &Rc<App>) {
     // Started some other way meanwhile (the tab, the tray, a paired device). Deferred, like
     // `start` below: dropping the offer stops the timer this tick runs from.
-    if app.pomodoro.borrow().is_some() || app.session.borrow().is_some() {
+    let started = app.pomodoro.borrow().is_some() && !left_paused(app, &today());
+    if started || app.session.borrow().is_some() {
         Timer::single_shot(Duration::ZERO, || crate::with_app(|app| drop(app.offer.take())));
         return;
     }
@@ -133,8 +146,19 @@ fn tick(app: &Rc<App>) {
 }
 
 fn start(app: &Rc<App>) {
-    if app.offer.take().is_none() || app.pomodoro.borrow().is_some() || app.session.borrow().is_some() {
+    let stale = left_paused(app, &today());
+    let started = app.pomodoro.borrow().is_some() && !stale;
+    if app.offer.take().is_none() || started || app.session.borrow().is_some() {
         return;
+    }
+    if stale {
+        // Stopped like with the Stop button: paired devices that followed it stop too
+        log!("[auto-pomodoro] replacing a Pomodoro left paused since an earlier day");
+        let shared = app.pomodoro.borrow().as_ref().is_some_and(|run| run.shared);
+        crate::stop_pomodoro(app);
+        if shared {
+            crate::sharing::publish(app, crate::sync::Shared::Idle);
+        }
     }
     log!("[auto-pomodoro] starting");
     let plan = app.settings.borrow().pomodoro;
@@ -161,5 +185,13 @@ mod tests {
         assert_eq!(day_of(at("2026-11-19 05:00")), "2026-11-19");
         // Still the evening before
         assert_eq!(day_of(at("2026-11-20 01:30")), "2026-11-19");
+    }
+
+    #[test]
+    fn a_pause_is_dated_in_local_time() {
+        use chrono::TimeZone;
+        let evening = chrono::Local.with_ymd_and_hms(2026, 11, 19, 22, 0, 0).unwrap();
+        let ms = evening.timestamp_millis() as u64;
+        assert_eq!(day_of_ms(ms).as_deref(), Some("2026-11-19"));
     }
 }

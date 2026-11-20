@@ -22,7 +22,13 @@ _Last updated: 2026-11-20_
   use of each day (day starts at 5:00; input in the last minute, past the Windows lock screen) a
   corner card counts down 30 s, then starts a Pomodoro on this PC only (user's choice: not sent
   to paired devices; a paired device's Idle doesn't stop it). User tested the card and the
-  automatic start; not yet checked that laptop and phone stay untouched.
+  automatic start; not yet checked that laptop and phone stay untouched. A Pomodoro left paused
+  since an earlier day (e.g. paused on the phone at 1:25) no longer blocks it: it's stopped, and
+  paired devices with it, when today's starts (after 2.9.0; not yet tested by the user).
+- Android: after "Set up blocking", a step-by-step guide for apps installed from a file (Android
+  13+ "restricted settings": tap the grey switch, App info → ⋮ → Allow restricted settings).
+  After 2.9.0; not yet tested. A signed APK without a release: run the Release workflow by hand,
+  download the `android-files` artifact.
 - New Schedule tab (tabs are now 0 Detox, 1 Pomodoro, 2 Schedule, 3 Sync), since 2.9.0:
   - set times (schedule.rs): up to 4 detoxes, e.g. 13:00 for 30 min, each on chosen weekdays
     (bitmask in settings.json, Monday = bit 0; older entries default to every day); a corner card counts
