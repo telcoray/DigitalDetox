@@ -34,8 +34,8 @@ _Last updated: 2026-11-20_
   on its own each day" with a "From" time (user's idea, default 08:00: phone use in the morning
   before school/work doesn't count). The first unlock after that time shows a notification
   counting down 30 s ("Start now" / "Not today"), then a Pomodoro starts on the phone only
-  (`DetoxService.local`: kept out of sync, like Windows' unshared daily Pomodoro). Windows still
-  uses a fixed 5:00 day start.
+  (`DetoxService.local`: kept out of sync, like Windows' unshared daily Pomodoro). Windows keeps
+  its fixed 5:00 day start: the user doesn't want the "From" time on the PC.
 - New Schedule tab (tabs are now 0 Detox, 1 Pomodoro, 2 Schedule, 3 Sync), since 2.9.0:
   - set times (schedule.rs): up to 4 detoxes, e.g. 13:00 for 30 min, each on chosen weekdays
     (bitmask in settings.json, Monday = bit 0; older entries default to every day); a corner card counts
