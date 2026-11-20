@@ -45,7 +45,9 @@ public final class MainActivity extends Activity {
     private static final int[] PRESET_MINUTES = {5, 15, 25, 45, 60};
     private ScrollView scroll;
     private TextView access, unlock, countdown, phase, rounds, peers, pairingCode, syncStatus;
-    private Button pause, stop, startPomodoro, sync;
+    private Button pause, stop, startPomodoro, sync, changeTimes, fromButton;
+    private TextView planSummary, dailyHint;
+    private android.widget.Switch daily;
     private EditText minutes;
     private int selected;
 
@@ -151,15 +153,16 @@ public final class MainActivity extends Activity {
         add(card, rounds, 16);
         startPomodoro = button("Start Pomodoro", RED, () -> {
             if (ready()) confirm("Start Pomodoro? This phone will block during breaks.", "Start",
-                () -> publish(DetoxService.obj("kind", "pomodoro", "start", Session.now())));
+                () -> publish(DetoxService.obj("kind", "pomodoro", "start", Session.now(), "plan", PomodoroSettings.plan(this))));
         });
         add(page, startPomodoro, 14);
+        planSummary = (TextView) page.getChildAt(1);
         LinearLayout actions = row();
         pause = button("Pause", PANEL, this::togglePause);
         stop = button("Stop", PANEL, () -> {
             DetoxService s = service();
             if (s != null && !s.locked() && "pomodoro".equals(s.shared.optString("kind"))) {
-                s.publish(DetoxService.obj("kind", "idle"));
+                s.update(DetoxService.obj("kind", "idle"));
             }
         });
         actions.addView(pause, new LinearLayout.LayoutParams(0, -2, 1));
@@ -167,7 +170,100 @@ public final class MainActivity extends Activity {
         right.leftMargin = dp(8);
         actions.addView(stop, right);
         add(page, actions, 12);
+        changeTimes = button("Change times", PANEL, this::editPlan);
+        add(page, changeTimes, 8);
+
+        // "Start on its own each day", see PomodoroSettings and DetoxService.checkDaily
+        LinearLayout card2 = card(page);
+        LinearLayout switchRow = row();
+        switchRow.addView(label("Start on its own each day", 16, WHITE), new LinearLayout.LayoutParams(0, -2, 1));
+        daily = new android.widget.Switch(this);
+        daily.setChecked(PomodoroSettings.auto(this));
+        daily.setOnCheckedChangeListener((v, on) -> {
+            PomodoroSettings.setAuto(this, on);
+            updateDaily();
+        });
+        switchRow.addView(daily);
+        add(card2, switchRow, 0);
+        LinearLayout fromRow = row();
+        fromRow.addView(label("From", 16, WHITE), new LinearLayout.LayoutParams(0, -2, 1));
+        fromButton = button("", BG, this::chooseFrom);
+        fromRow.addView(fromButton, new LinearLayout.LayoutParams(dp(110), -2));
+        add(card2, fromRow, 10);
+        dailyHint = label("", 14, MUTED);
+        add(card2, dailyHint, 10);
+        updateDaily();
         return page;
+    }
+
+    private void updateDaily() {
+        int from = PomodoroSettings.from(this);
+        fromButton.setText(PomodoroSettings.timeText(from));
+        fromButton.setEnabled(daily.isChecked());
+        fromButton.setAlpha(daily.isChecked() ? 1f : 0.5f);
+        dailyHint.setText("The first time you unlock the phone after " + PomodoroSettings.timeText(from)
+            + ", a notification counts down 30 seconds, then a Pomodoro starts on this phone only."
+            + " Using the phone earlier doesn't count.");
+    }
+
+    private void chooseFrom() {
+        int from = PomodoroSettings.from(this);
+        new android.app.TimePickerDialog(this, (picker, hour, minute) -> {
+            PomodoroSettings.setFrom(this, hour * 60 + minute);
+            updateDaily();
+        }, from / 60, from % 60, android.text.format.DateFormat.is24HourFormat(this)).show();
+    }
+
+    /** "Change times": the same choices as in the Windows app, with the same limits */
+    private void editPlan() {
+        Session.Plan plan = savedPlan();
+        String[] names = {"Focus · minutes", "Short break · minutes", "Long break · minutes",
+            "Rounds before the long break", "Total rounds, then stop (empty = until stopped)"};
+        String[] keys = {"work", "short_break", "long_break", "rounds", "total"};
+        int[] min = {1, 1, 1, 1, 0}, max = {180, 120, 120, 8, 50};
+        long[] values = {plan.work() / 60000, plan.shortBreak() / 60000, plan.longBreak() / 60000, plan.rounds(), plan.total()};
+        int[] usual = {25, 5, 15, 4, 0};
+        EditText[] fields = new EditText[5];
+        LinearLayout box = column();
+        box.setPadding(dp(22), dp(8), dp(22), 0);
+        for (int i = 0; i < 5; i++) {
+            add(box, label(names[i], 14, MUTED), i == 0 ? 0 : 10);
+            fields[i] = numberField(i == 4 && values[i] == 0 ? "" : Long.toString(values[i]), i == 4 ? "until stopped" : "", 3);
+            add(box, fields[i], 4);
+        }
+        ScrollView scrollBox = new ScrollView(this);
+        scrollBox.addView(box);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Pomodoro times").setView(scrollBox)
+            .setPositiveButton("Save", null).setNeutralButton("Usual", null).setNegativeButton("Cancel", null).create();
+        dialog.setOnShowListener(d -> {
+            // "Usual" fills in 25 / 5 / 15, 4 rounds, without closing
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                for (int i = 0; i < 5; i++) fields[i].setText(i == 4 ? "" : Integer.toString(usual[i]));
+            });
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                JSONObject saved = new JSONObject();
+                for (int i = 0; i < 5; i++) {
+                    String text = fields[i].getText().toString().trim();
+                    int value;
+                    try { value = text.isEmpty() && i == 4 ? 0 : Integer.parseInt(text); }
+                    catch (NumberFormatException e) { value = -1; }
+                    if (value < min[i] || value > max[i]) {
+                        fields[i].setError("A number from " + min[i] + " to " + max[i]);
+                        return;
+                    }
+                    try { saved.put(keys[i], value); }
+                    catch (org.json.JSONException e) { throw new IllegalStateException(e); }
+                }
+                PomodoroSettings.savePlan(this, saved);
+                dialog.dismiss();
+            });
+        });
+        dialog.show();
+    }
+
+    /** The lengths a Pomodoro started here would have */
+    private Session.Plan savedPlan() {
+        return Session.Plan.of(DetoxService.obj("plan", PomodoroSettings.plan(this)));
     }
 
     private LinearLayout syncPage() {
@@ -268,7 +364,7 @@ public final class MainActivity extends Activity {
                 throw new IllegalStateException(e);
             }
         }
-        s.publish(updated);
+        s.update(updated);
     }
 
     private void toggleSync() {
@@ -430,7 +526,10 @@ public final class MainActivity extends Activity {
         boolean running = "pomodoro".equals(s.shared.optString("kind"));
         boolean paused = running && s.shared.has("paused_at");
         Session.Phase current = Session.phase(s.shared, Session.now());
-        Session.Plan plan = Session.Plan.of(running ? s.shared : new JSONObject());
+        Session.Plan plan = running ? Session.Plan.of(s.shared) : savedPlan();
+        planSummary.setText(plan.work() / 60000 + " min focus  ·  " + plan.shortBreak() / 60000 + " min break  ·  "
+            + plan.longBreak() / 60000 + " min long break" + (plan.total() > 0 ? "  ·  " + plan.total() + " rounds" : ""));
+        changeTimes.setVisibility(running ? View.GONE : View.VISIBLE);
         int round = running ? current.round() : 1;
         countdown.setText(running ? Session.time(current.remaining()) : Session.time(plan.work()));
         phase.setText(paused ? "Paused" : current.locked() && running ? "Break in progress"
