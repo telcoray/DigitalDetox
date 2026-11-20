@@ -312,9 +312,60 @@ public final class MainActivity extends Activity {
         }).setNegativeButton("Close", null).show();
     }
 
+    // The guide to turning blocking on. From Android 13, an app installed from a file (not from
+    // a store) can't have its accessibility switch turned on until "Allow restricted settings"
+    // is chosen in its App info, and that menu item only appears after the grey switch has been
+    // tapped once. So the guide goes step by step: each time the user comes back without
+    // blocking on, it offers the next step (see onResume).
+    private enum Step { NONE, ACCESSIBILITY, APP_INFO }
+    private Step step = Step.NONE;
+    private final Runnable guide = this::continueGuide;
+
     private void blockingPermission() {
-        confirm("The accessibility service shows a blocking screen during Detox and Pomodoro breaks. It observes which app is in front and does not read screen text or typed content. Phone calls and emergency exit remain available. You can revoke permission in Android settings.",
-            "Open accessibility settings", () -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        confirm("The accessibility service shows a blocking screen during Detox and Pomodoro breaks. It observes which app is in front and does not read screen text or typed content. Phone calls and emergency exit remain available. You can revoke permission in Android settings."
+                + (installedFromFile() ? "\n\nNext: tap Digital Detox, then its switch. If the switch is grey, tap it anyway and come back here: you'll be shown how to unlock it." : "\n\nNext: tap Digital Detox, then turn its switch on."),
+            "Open accessibility settings", this::openAccessibility);
+    }
+
+    private void openAccessibility() {
+        step = Step.ACCESSIBILITY;
+        startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+    }
+
+    private void openAppInfo() {
+        step = Step.APP_INFO;
+        startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(android.net.Uri.fromParts("package", getPackageName(), null)));
+    }
+
+    /** Back from a step of the guide: offers the next one, unless blocking is on now */
+    private void continueGuide() {
+        Step from = step;
+        step = Step.NONE;
+        if (from == Step.NONE || BlockService.instance != null) return;
+        if (from == Step.ACCESSIBILITY && installedFromFile()) {
+            new AlertDialog.Builder(this).setTitle("Was the switch grey?")
+                .setMessage("Android locks this setting for apps installed from a file.\n\n1. Open App info.\n2. Tap ⋮ in the top right corner.\n3. Tap \"Allow restricted settings\" and confirm.\n4. Come back here.\n\nThe menu item only appears after you've tapped the grey switch once.")
+                .setPositiveButton("Open App info", (d, w) -> openAppInfo())
+                .setNeutralButton("Try again", (d, w) -> openAccessibility())
+                .setNegativeButton("Close", null).show();
+        } else {
+            new AlertDialog.Builder(this).setTitle("Turn blocking on")
+                .setMessage("Open accessibility settings, tap Digital Detox and turn its switch on.")
+                .setPositiveButton("Open accessibility settings", (d, w) -> openAccessibility())
+                .setNegativeButton("Close", null).show();
+        }
+    }
+
+    /** Installed from an APK file rather than a store: Android 13+ then restricts accessibility */
+    private boolean installedFromFile() {
+        if (Build.VERSION.SDK_INT < 33) return false;
+        try {
+            int source = getPackageManager().getInstallSourceInfo(getPackageName()).getPackageSource();
+            return source != android.content.pm.PackageInstaller.PACKAGE_SOURCE_STORE;
+        } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+            return true;
+        }
     }
 
     private void stopBackgroundService() {
@@ -414,20 +465,26 @@ public final class MainActivity extends Activity {
         super.onSaveInstanceState(state);
         state.putInt("tab", selected);
         state.putString("duration", minutes.getText().toString());
+        // Android may close the app while its settings are open
+        state.putString("guide", step.name());
     }
 
     @Override protected void onRestoreInstanceState(Bundle state) {
         super.onRestoreInstanceState(state);
         minutes.setText(state.getString("duration", "25"));
+        step = Step.valueOf(state.getString("guide", Step.NONE.name()));
     }
 
     @Override protected void onResume() {
         super.onResume();
         handler.post(refresh);
+        // A moment's wait: the service may connect just after the switch was turned on
+        if (step != Step.NONE) handler.postDelayed(guide, 600);
     }
 
     @Override protected void onPause() {
         handler.removeCallbacks(refresh);
+        handler.removeCallbacks(guide);
         super.onPause();
     }
 
