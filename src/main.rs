@@ -88,8 +88,6 @@ struct App {
 
 struct PomodoroRun {
     tracker: pomodoro::Tracker,
-    // Paired devices follow it. False for the one started by itself each day, which stays here.
-    shared: bool,
     // Ticks the cycle every second
     _timer: Timer,
     // The "Break in 1 minute" card, while it's shown
@@ -394,27 +392,20 @@ fn start_lock(app: &Rc<App>, duration: Duration, kind: SessionKind) {
     }
 }
 
-/// Starts the Pomodoro mode, or stops it if it's on. Paired devices do the same, unless it's
-/// the one that started by itself.
+/// Starts the Pomodoro mode, or stops it if it's on. Paired devices do the same.
 fn toggle_pomodoro(app: &Rc<App>) {
-    let running = app.pomodoro.borrow().as_ref().map(|run| run.shared);
-    match running {
-        Some(shared) => {
-            stop_pomodoro(app);
-            if shared {
-                sharing::publish(app, sync::Shared::Idle);
-            }
-        }
-        None => {
-            let start = time_format::now_ms();
-            let plan = app.settings.borrow().pomodoro;
-            run_pomodoro(app, start, None, plan, true);
-            sharing::publish(app, sync::Shared::Pomodoro { start, paused_at: None, plan });
-        }
+    if app.pomodoro.borrow().is_some() {
+        stop_pomodoro(app);
+        sharing::publish(app, sync::Shared::Idle);
+    } else {
+        let start = time_format::now_ms();
+        let plan = app.settings.borrow().pomodoro;
+        run_pomodoro(app, start, None, plan);
+        sharing::publish(app, sync::Shared::Pomodoro { start, paused_at: None, plan });
     }
 }
 
-/// Pauses the Pomodoro, or resumes it. Paired devices do the same, if they follow it.
+/// Pauses the Pomodoro, or resumes it. Paired devices do the same.
 fn toggle_pause(app: &Rc<App>) {
     let now = time_format::now_ms();
     let shared = {
@@ -429,26 +420,24 @@ fn toggle_pause(app: &Rc<App>) {
             run.reminder = None;
             log!("[pomodoro] paused");
         }
-        run.shared.then(|| sync::Shared::Pomodoro {
+        sync::Shared::Pomodoro {
             start: run.tracker.start_ms(),
             paused_at: run.tracker.paused_at(),
             plan: run.tracker.plan(),
-        })
+        }
     };
-    if let Some(shared) = shared {
-        sharing::publish(app, shared);
-    }
+    sharing::publish(app, shared);
     update_pomodoro_view(app);
 }
 
 /// Runs the Pomodoro that started at `start_ms` (now, or earlier on a paired device), paused
-/// since `paused_at` if it is, with the lengths in `plan`. `shared`: paired devices follow it.
-fn run_pomodoro(app: &Rc<App>, start_ms: u64, paused_at: Option<u64>, plan: pomodoro::Plan, shared: bool) {
-    log!("[pomodoro] running, started at {start_ms}, paused at {paused_at:?}, {plan:?}, shared: {shared}");
+/// since `paused_at` if it is, with the lengths in `plan`.
+fn run_pomodoro(app: &Rc<App>, start_ms: u64, paused_at: Option<u64>, plan: pomodoro::Plan) {
+    log!("[pomodoro] running, started at {start_ms}, paused at {paused_at:?}, {plan:?}");
     let timer = Timer::default();
     timer.start(TimerMode::Repeated, Duration::from_secs(1), || with_app(pomodoro_tick));
     let tracker = pomodoro::Tracker::new(start_ms, paused_at, plan);
-    let previous = app.pomodoro.replace(Some(PomodoroRun { tracker, shared, _timer: timer, reminder: None }));
+    let previous = app.pomodoro.replace(Some(PomodoroRun { tracker, _timer: timer, reminder: None }));
     // Dropped outside the borrow: this removes its reminder card if it's shown
     drop(previous);
     app.window.set_error_text(SharedString::new());
@@ -474,7 +463,7 @@ fn stop_pomodoro(app: &Rc<App>) {
 
 fn pomodoro_tick(app: &Rc<App>) {
     let now = time_format::now_ms();
-    let (event, shared) = {
+    let event = {
         let mut slot = app.pomodoro.borrow_mut();
         let Some(run) = slot.as_mut() else { return };
         let event = run.tracker.tick(now);
@@ -487,7 +476,7 @@ fn pomodoro_tick(app: &Rc<App>) {
             Some(pomodoro::Event::BreakDue(_)) => run.reminder = None,
             Some(pomodoro::Event::Finished) | None => {}
         }
-        (event, run.shared)
+        event
     };
     match event {
         // Not while a detox is on screen (e.g. one started on a paired device): it ends first
@@ -500,9 +489,7 @@ fn pomodoro_tick(app: &Rc<App>) {
         Some(pomodoro::Event::Finished) => {
             log!("[pomodoro] all rounds done");
             stop_pomodoro(app);
-            if shared {
-                sharing::publish(app, sync::Shared::Idle);
-            }
+            sharing::publish(app, sync::Shared::Idle);
             return;
         }
         _ => {}

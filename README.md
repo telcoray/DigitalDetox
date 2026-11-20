@@ -109,7 +109,7 @@ It keeps going round after round until you click **Stop**, here or in the tray m
 
 Click **Change times**, under the timer, to choose the minutes of focus, of the short and of the long break, after how many rounds the long break comes, and, if you like, after how many rounds the Pomodoro stops by itself. Paired devices follow the times of the device where the Pomodoro was started.
 
-Turn on **Start on its own each day**, above the button or in the tray menu, and the first time you use the PC each day a card counts down 30 seconds and then starts the Pomodoro, on this PC only. Click **Not today** to skip it.
+Turn on **Start on its own each day**, above the button or in the tray menu, and the first time you use the PC each day a card counts down 30 seconds and then starts the Pomodoro, on your paired devices too. Click **Not today** to skip it.
 
 <br clear="right" />
 

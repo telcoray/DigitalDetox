@@ -164,21 +164,15 @@ pub fn after_lock(app: &Rc<App>) {
 /// Makes this device do what `current` says
 fn apply(app: &Rc<App>) {
     match app.sharing.current.get().1 {
-        Shared::Idle => {
-            // The Pomodoro that started by itself is this device's own: a paired device stopping
-            // theirs doesn't stop it
-            if app.pomodoro.borrow().as_ref().is_some_and(|run| run.shared) {
-                crate::stop_pomodoro(app);
-            }
-        }
+        Shared::Idle => crate::stop_pomodoro(app),
         Shared::Pomodoro { start, paused_at, plan } => {
             let running = app
                 .pomodoro
                 .borrow()
                 .as_ref()
-                .map(|run| (run.tracker.start_ms(), run.tracker.paused_at(), run.tracker.plan(), run.shared));
-            if running != Some((start, paused_at, plan.sane(), true)) {
-                crate::run_pomodoro(app, start, paused_at, plan, true);
+                .map(|run| (run.tracker.start_ms(), run.tracker.paused_at(), run.tracker.plan()));
+            if running != Some((start, paused_at, plan.sane())) {
+                crate::run_pomodoro(app, start, paused_at, plan);
             }
         }
         Shared::Detox { ends_at } => {

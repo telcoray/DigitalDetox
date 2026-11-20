@@ -2,8 +2,8 @@
 //! itself, so it doesn't depend on remembering it. A card in the corner counts down first,
 //! with "Start now" and "Not today".
 //!
-//! It runs on this PC only: paired devices aren't told, so stopping or pausing it doesn't touch
-//! theirs either. Something started on a paired device still takes over, as usual.
+//! Paired devices follow it like any other Pomodoro started here (the user's choice). The phone's
+//! own daily Pomodoro works the other way: it stays on the phone.
 
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -121,7 +121,7 @@ fn offer(app: &Rc<App>) {
 }
 
 fn countdown_text(left: Duration) -> String {
-    format!("Starts in {} s, on this PC only.", left.as_secs_f32().ceil() as u64)
+    format!("Starts in {} s, on paired devices too.", left.as_secs_f32().ceil() as u64)
 }
 
 fn tick(app: &Rc<App>) {
@@ -152,17 +152,14 @@ fn start(app: &Rc<App>) {
         return;
     }
     if stale {
-        // Stopped like with the Stop button: paired devices that followed it stop too
+        // Replaced, here and on the paired devices that followed it, by today's
         log!("[auto-pomodoro] replacing a Pomodoro left paused since an earlier day");
-        let shared = app.pomodoro.borrow().as_ref().is_some_and(|run| run.shared);
-        crate::stop_pomodoro(app);
-        if shared {
-            crate::sharing::publish(app, crate::sync::Shared::Idle);
-        }
     }
     log!("[auto-pomodoro] starting");
+    let start = time_format::now_ms();
     let plan = app.settings.borrow().pomodoro;
-    crate::run_pomodoro(app, time_format::now_ms(), None, plan, false);
+    crate::run_pomodoro(app, start, None, plan);
+    crate::sharing::publish(app, crate::sync::Shared::Pomodoro { start, paused_at: None, plan });
 }
 
 pub fn cancel(app: &Rc<App>) {
