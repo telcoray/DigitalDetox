@@ -215,11 +215,52 @@ public final class MainActivity extends Activity {
     }
 
     private void chooseFrom() {
-        int from = PomodoroSettings.from(this);
-        new android.app.TimePickerDialog(this, (picker, hour, minute) -> {
-            PomodoroSettings.setFrom(this, hour * 60 + minute);
-            updateDaily();
-        }, from / 60, from % 60, android.text.format.DateFormat.is24HourFormat(this)).show();
+        int[] clock = {PomodoroSettings.from(this)};
+        LinearLayout box = column();
+        box.setPadding(dp(22), dp(8), dp(22), 0);
+        add(box, timeWheel(clock), 0);
+        new AlertDialog.Builder(this).setTitle("Start from").setView(box)
+            .setPositiveButton("Save", (d, w) -> {
+                PomodoroSettings.setFrom(this, clock[0]);
+                updateDaily();
+            })
+            .setNegativeButton("Cancel", null).show();
+    }
+
+    /** Two vertical wheels, hours and minutes, that change `clock` (minutes after midnight) in place */
+    private LinearLayout timeWheel(int[] clock) {
+        LinearLayout wheel = row();
+        wheel.setGravity(Gravity.CENTER);
+        wheel.setPadding(0, dp(4), 0, dp(4));
+        wheel.setBackground(shape(BG, 14, EDGE));
+        android.widget.NumberPicker hours = wheelOf(23, clock[0] / 60);
+        android.widget.NumberPicker minutes = wheelOf(59, clock[0] % 60);
+        hours.setOnValueChangedListener((p, old, now) -> clock[0] = now * 60 + clock[0] % 60);
+        minutes.setOnValueChangedListener((p, old, now) -> clock[0] = clock[0] / 60 * 60 + now);
+        wheel.addView(hours, new LinearLayout.LayoutParams(dp(84), dp(170)));
+        TextView colon = label(":", 30, WHITE);
+        colon.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        colon.setPadding(dp(8), 0, dp(8), dp(4));
+        wheel.addView(colon);
+        wheel.addView(minutes, new LinearLayout.LayoutParams(dp(84), dp(170)));
+        return wheel;
+    }
+
+    private android.widget.NumberPicker wheelOf(int max, int value) {
+        android.widget.NumberPicker picker = new android.widget.NumberPicker(this);
+        String[] names = new String[max + 1];
+        for (int i = 0; i <= max; i++) names[i] = String.format(java.util.Locale.ROOT, "%02d", i);
+        picker.setMinValue(0);
+        picker.setMaxValue(max);
+        picker.setDisplayedValues(names);
+        picker.setValue(value);
+        picker.setWrapSelectorWheel(true);
+        // Scroll only: no keyboard popping up when the middle number is tapped
+        picker.setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        picker.setTextColor(WHITE);
+        picker.setTextSize(dp(28));
+        picker.setSelectionDividerHeight(dp(1));
+        return picker;
     }
 
     /** A row of day buttons, Monday first; `days` holds the bits (see Schedule) and is changed in place */
@@ -297,13 +338,7 @@ public final class MainActivity extends Activity {
         LinearLayout box = column();
         box.setPadding(dp(22), dp(8), dp(22), 0);
         add(box, label("Time", 14, MUTED), 0);
-        Button timeButton = button(PomodoroSettings.timeText(clock[0]), BG, () -> {});
-        timeButton.setTextSize(22);
-        timeButton.setOnClickListener(v -> new android.app.TimePickerDialog(this, (picker, hour, minute) -> {
-            clock[0] = hour * 60 + minute;
-            timeButton.setText(PomodoroSettings.timeText(clock[0]));
-        }, clock[0] / 60, clock[0] % 60, android.text.format.DateFormat.is24HourFormat(this)).show());
-        add(box, timeButton, 4);
+        add(box, timeWheel(clock), 4);
         add(box, label("Minutes", 14, MUTED), 12);
         EditText length = numberField(Integer.toString(old.minutes()), "1–999", 3);
         add(box, length, 4);

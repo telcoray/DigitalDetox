@@ -2,7 +2,7 @@
 
 Shared working notes for the agents on this project. Update at the end of each session; keep it short.
 
-_Last updated: 2026-11-20_
+_Last updated: 2026-11-21_
 
 ## Current state
 
@@ -39,6 +39,12 @@ _Last updated: 2026-11-20_
   its fixed 5:00 day start: the user doesn't want the "From" time on the PC.
   User tested: custom times from the phone are followed by the PC; the daily start works (the
   notification wasn't noticed: Honor shows new channels without a banner).
+- Android time pickers (Schedule's "Add a time", Pomodoro's "From") are two vertical wheels
+  (NumberPicker, hours and minutes) inside the dialog, at the user's request (2026-11-21).
+- Testing Android on the PC: the SDK has the AVD `Medium_Phone_API_36.1` (x86_64; it runs the
+  arm64 native library through ARM translation). Start it with
+  `C:\Android\emulator\emulator.exe -avd Medium_Phone_API_36.1`, then
+  `adb install -r app\build\outputs\apk\debug\app-debug.apk`. Its Sync can't reach the LAN.
 - Android, after that (not yet tested): days of the week for the daily Pomodoro, and a Schedule
   tab like Windows' (up to 4 set times with days, notification a minute before with Start now /
   Skip, then a detox on this phone only, `publishLocal`; skipped during a Pomodoro).
