@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:alertDialogTheme">@style/DialogTheme</item>
+    </style>
+
+    <!-- Dialogs in the app's own colours (the same as its cards) instead of Android's grey -->
+    <style name="DialogTheme" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_background</item>
+        <item name="android:colorBackground">#ff242437</item>
+        <item name="android:colorAccent">#ff3498db</item>
+        <item name="android:textColorPrimary">#ffecf0f1</item>
+        <item name="android:textColorSecondary">#ffadbcc4</item>
+    </style>
+</resources>
