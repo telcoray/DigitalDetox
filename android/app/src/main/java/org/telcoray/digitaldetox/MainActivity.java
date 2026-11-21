@@ -47,6 +47,8 @@ public final class MainActivity extends Activity {
     private TextView access, unlock, countdown, phase, rounds, peers, pairingCode, syncStatus;
     private Button pause, stop, startPomodoro, sync, changeTimes, fromButton;
     private TextView planSummary, dailyHint;
+    private LinearLayout planEditor;
+    private final EditText[] planFields = new EditText[5];
     private android.widget.Switch daily;
     private LinearLayout scheduleList;
     private Button addTime;
@@ -175,6 +177,7 @@ public final class MainActivity extends Activity {
         add(page, actions, 12);
         changeTimes = button("Change times", PANEL, this::editPlan);
         add(page, changeTimes, 8);
+        planEditor = planEditor(page);
 
         // "Start on its own each day", see PomodoroSettings and DetoxService.checkDaily
         LinearLayout card2 = card(page);
@@ -371,51 +374,77 @@ public final class MainActivity extends Activity {
         dialog.show();
     }
 
-    /** "Change times": the same choices as in the Windows app, with the same limits */
-    private void editPlan() {
-        Session.Plan plan = savedPlan();
+    /**
+     * "Change times", right on the page: the same choices as in the Windows app, with the same
+     * limits. Hidden until the button is pressed, and while a Pomodoro runs.
+     */
+    private LinearLayout planEditor(LinearLayout page) {
         String[] names = {"Focus · minutes", "Short break · minutes", "Long break · minutes",
-            "Rounds before the long break", "Total rounds, then stop (empty = until stopped)"};
+            "Rounds before the long break", "Total rounds, then stop"};
         String[] keys = {"work", "short_break", "long_break", "rounds", "total"};
         int[] min = {1, 1, 1, 1, 0}, max = {180, 120, 120, 8, 50};
-        long[] values = {plan.work() / 60000, plan.shortBreak() / 60000, plan.longBreak() / 60000, plan.rounds(), plan.total()};
         int[] usual = {25, 5, 15, 4, 0};
-        EditText[] fields = new EditText[5];
-        LinearLayout box = column();
-        box.setPadding(dp(22), dp(8), dp(22), 0);
+        LinearLayout editor = card(page);
+        ((LinearLayout.LayoutParams) editor.getLayoutParams()).topMargin = dp(8);
         for (int i = 0; i < 5; i++) {
-            add(box, label(names[i], 14, MUTED), i == 0 ? 0 : 10);
-            fields[i] = numberField(i == 4 && values[i] == 0 ? "" : Long.toString(values[i]), i == 4 ? "until stopped" : "", 3);
-            add(box, fields[i], 4);
+            LinearLayout line = row();
+            line.addView(label(names[i], 15, WHITE), new LinearLayout.LayoutParams(0, -2, 1));
+            planFields[i] = numberField("", i == 4 ? "no limit" : "", 3);
+            line.addView(planFields[i], new LinearLayout.LayoutParams(dp(104), -2));
+            add(editor, line, i == 0 ? 0 : 10);
         }
-        ScrollView scrollBox = new ScrollView(this);
-        scrollBox.addView(box);
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Pomodoro times").setView(scrollBox)
-            .setPositiveButton("Save", null).setNeutralButton("Usual", null).setNegativeButton("Cancel", null).create();
-        dialog.setOnShowListener(d -> {
-            // "Usual" fills in 25 / 5 / 15, 4 rounds, without closing
-            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
-                for (int i = 0; i < 5; i++) fields[i].setText(i == 4 ? "" : Integer.toString(usual[i]));
-            });
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-                JSONObject saved = new JSONObject();
-                for (int i = 0; i < 5; i++) {
-                    String text = fields[i].getText().toString().trim();
-                    int value;
-                    try { value = text.isEmpty() && i == 4 ? 0 : Integer.parseInt(text); }
-                    catch (NumberFormatException e) { value = -1; }
-                    if (value < min[i] || value > max[i]) {
-                        fields[i].setError("A number from " + min[i] + " to " + max[i]);
-                        return;
-                    }
-                    try { saved.put(keys[i], value); }
-                    catch (org.json.JSONException e) { throw new IllegalStateException(e); }
+        LinearLayout buttons = row();
+        // "Usual" fills in 25 / 5 / 15, 4 rounds, without saving yet
+        buttons.addView(button("Usual", BG, () -> {
+            for (int i = 0; i < 5; i++) planFields[i].setText(i == 4 ? "" : Integer.toString(usual[i]));
+        }), new LinearLayout.LayoutParams(0, -2, 1));
+        LinearLayout.LayoutParams middle = new LinearLayout.LayoutParams(0, -2, 1);
+        middle.leftMargin = dp(8);
+        buttons.addView(button("Cancel", BG, this::closePlan), middle);
+        LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(0, -2, 1);
+        right.leftMargin = dp(8);
+        buttons.addView(button("Save", BLUE, () -> {
+            JSONObject saved = new JSONObject();
+            for (int i = 0; i < 5; i++) {
+                String text = planFields[i].getText().toString().trim();
+                int value;
+                try { value = text.isEmpty() && i == 4 ? 0 : Integer.parseInt(text); }
+                catch (NumberFormatException e) { value = -1; }
+                if (value < min[i] || value > max[i]) {
+                    planFields[i].setError("A number from " + min[i] + " to " + max[i]);
+                    planFields[i].requestFocus();
+                    return;
                 }
-                PomodoroSettings.savePlan(this, saved);
-                dialog.dismiss();
-            });
-        });
-        dialog.show();
+                try { saved.put(keys[i], value); }
+                catch (org.json.JSONException e) { throw new IllegalStateException(e); }
+            }
+            PomodoroSettings.savePlan(this, saved);
+            closePlan();
+        }), right);
+        add(editor, buttons, 16);
+        editor.setVisibility(View.GONE);
+        return editor;
+    }
+
+    private void editPlan() {
+        Session.Plan plan = savedPlan();
+        long[] values = {plan.work() / 60000, plan.shortBreak() / 60000, plan.longBreak() / 60000, plan.rounds(), plan.total()};
+        for (int i = 0; i < 5; i++) {
+            planFields[i].setError(null);
+            planFields[i].setText(i == 4 && values[i] == 0 ? "" : Long.toString(values[i]));
+        }
+        planEditor.setVisibility(View.VISIBLE);
+        changeTimes.setVisibility(View.GONE);
+    }
+
+    private void closePlan() {
+        View focused = getCurrentFocus();
+        if (focused != null) {
+            getSystemService(android.view.inputmethod.InputMethodManager.class).hideSoftInputFromWindow(focused.getWindowToken(), 0);
+            focused.clearFocus();
+        }
+        planEditor.setVisibility(View.GONE);
+        changeTimes.setVisibility(View.VISIBLE);
     }
 
     /** The lengths a Pomodoro started here would have */
@@ -686,7 +715,8 @@ public final class MainActivity extends Activity {
         Session.Plan plan = running ? Session.Plan.of(s.shared) : savedPlan();
         planSummary.setText(plan.work() / 60000 + " min focus  ·  " + plan.shortBreak() / 60000 + " min break  ·  "
             + plan.longBreak() / 60000 + " min long break" + (plan.total() > 0 ? "  ·  " + plan.total() + " rounds" : ""));
-        changeTimes.setVisibility(running ? View.GONE : View.VISIBLE);
+        if (running && planEditor.getVisibility() == View.VISIBLE) closePlan();
+        changeTimes.setVisibility(running || planEditor.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
         int round = running ? current.round() : 1;
         countdown.setText(running ? Session.time(current.remaining()) : Session.time(plan.work()));
         phase.setText(paused ? "Paused" : current.locked() && running ? "Break in progress"
