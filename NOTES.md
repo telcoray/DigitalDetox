@@ -44,6 +44,9 @@ _Last updated: 2026-11-22_
   15/30/45/60 min, on this phone only (`publishLocal`). Turning it on starts from the next day.
   It doesn't interrupt a running Pomodoro, but replaces one left paused since before 05:00. The
   daily Pomodoro and set times wait until it's over. Tested in the emulator; not yet on the phone.
+- Android lock screen (BlockService) redesigned like Windows': breathing guide (2/3/4 s, blue
+  circle between two rings), light countdown, "Unlocks at", one of Windows' calm messages,
+  "Pomodoro break" as title during a break, quiet outlined emergency buttons at the bottom.
 - Android "Change times" is a panel on the Pomodoro page (no dialog); all dialogs use the app's
   dark colours (themes.xml).
 - Android time pickers (Schedule's "Add a time", Pomodoro's "From") are two vertical wheels
