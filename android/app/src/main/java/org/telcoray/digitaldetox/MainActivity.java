@@ -140,7 +140,50 @@ public final class MainActivity extends Activity {
         access.setTag(setup);
         updateUnlock();
         updatePresets();
+        morningCard(page);
         return page;
+    }
+
+    // "Wait in the morning", see MorningLock and DetoxService.checkMorning
+    private void morningCard(LinearLayout page) {
+        LinearLayout card = card(page);
+        LinearLayout switchRow = row();
+        switchRow.addView(label("Wait in the morning", 16, WHITE), new LinearLayout.LayoutParams(0, -2, 1));
+        android.widget.Switch on = new android.widget.Switch(this);
+        on.setChecked(MorningLock.on(this));
+        switchRow.addView(on);
+        add(card, switchRow, 0);
+        LinearLayout choices = row();
+        List<Button> buttons = new ArrayList<>();
+        Runnable style = () -> {
+            boolean enabled = on.isChecked();
+            for (int i = 0; i < buttons.size(); i++) {
+                boolean active = MorningLock.CHOICES[i] == MorningLock.minutes(this);
+                Button b = buttons.get(i);
+                b.setEnabled(enabled);
+                b.setAlpha(enabled ? 1f : 0.5f);
+                b.setBackground(ripple(active ? 0xff253951 : BG, 13, active ? BLUE : EDGE));
+            }
+        };
+        for (int value : MorningLock.CHOICES) {
+            Button choice = button(value + " min", BG, () -> {
+                MorningLock.setMinutes(this, value);
+                style.run();
+            });
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(48), 1);
+            params.setMargins(dp(2), 0, dp(2), 0);
+            choices.addView(choice, params);
+            buttons.add(choice);
+        }
+        add(card, choices, 12);
+        add(card, label("The first time you unlock the phone each day, it locks right away for these minutes,"
+            + " on this phone only. Get up first: the phone can wait. The day starts at 05:00.", 14, MUTED), 12);
+        on.setOnCheckedChangeListener((v, checked) -> {
+            MorningLock.setOn(this, checked);
+            style.run();
+            if (checked) toast("From tomorrow morning");
+        });
+        style.run();
     }
 
     private LinearLayout pomodoroPage() {

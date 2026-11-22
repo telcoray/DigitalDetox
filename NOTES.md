@@ -2,7 +2,7 @@
 
 Shared working notes for the agents on this project. Update at the end of each session; keep it short.
 
-_Last updated: 2026-11-21_
+_Last updated: 2026-11-22_
 
 ## Current state
 
@@ -39,6 +39,13 @@ _Last updated: 2026-11-21_
   its fixed 5:00 day start: the user doesn't want the "From" time on the PC.
   User tested: custom times from the phone are followed by the PC; the daily start works (the
   notification wasn't noticed: Honor shows new channels without a banner).
+- Android "Wait in the morning" (Detox tab, user's idea 2026-11-22, MorningLock.java): the
+  first unlock of each day (day starts at 05:00, like Windows) locks the phone right away for
+  15/30/45/60 min, on this phone only (`publishLocal`). Turning it on starts from the next day.
+  It doesn't interrupt a running Pomodoro, but replaces one left paused since before 05:00. The
+  daily Pomodoro and set times wait until it's over. Tested in the emulator; not yet on the phone.
+- Android "Change times" is a panel on the Pomodoro page (no dialog); all dialogs use the app's
+  dark colours (themes.xml).
 - Android time pickers (Schedule's "Add a time", Pomodoro's "From") are two vertical wheels
   (NumberPicker, hours and minutes) inside the dialog, at the user's request (2026-11-21).
 - Testing Android on the PC: the SDK has the AVD `Medium_Phone_API_36.1` (x86_64; it runs the

@@ -48,8 +48,8 @@ public final class DetoxService extends Service {
   Session.Phase p=Session.phase(shared,now);
   // A Pomodoro with a set number of rounds is over: back to idle, like the device that started it
   if(lockUntil==0&&p.key().equals("done")){update(obj("kind","idle"));p=Session.phase(shared,now);}
-  checkDaily();
-  checkSchedule();
+  // The lock itself begins further down; meanwhile nothing else may start
+  if(!checkMorning()){checkDaily();checkSchedule();}
   if(lockUntil==0&&p.locked()&&!p.key().equals(escaped)&&p.remaining()>=5000&&BlockService.instance!=null){lockKey=p.key();wallEnd=now+Math.min(p.remaining(),999*60000L);lockUntil=SystemClock.elapsedRealtime()+(wallEnd-now);save();}
   if(BlockService.instance!=null)BlockService.instance.refresh();
   getSystemService(NotificationManager.class).notify(1,notification(locked()?"Detox · "+Session.time(remaining()):shared.optString("kind").equals("pomodoro")?"Pomodoro · "+Session.time(p.remaining()):syncEnabled?"Sync enabled on your local network":"Ready"));
@@ -105,6 +105,25 @@ public final class DetoxService extends Service {
   handled(due);
   if(locked()||running())return;
   publishLocal(obj("kind","detox","ends_at",Session.now()+due.minutes()*60000L));
+ }
+
+ // "Wait in the morning" (see MorningLock): the first time the phone is unlocked each day, it
+ // locks right away for the chosen minutes, on this phone only. True when it started now.
+ boolean checkMorning(){
+  java.time.LocalDateTime now=java.time.LocalDateTime.now();
+  if(!MorningLock.due(this,now)||locked())return false;
+  PowerManager power=getSystemService(PowerManager.class);KeyguardManager keyguard=getSystemService(KeyguardManager.class);
+  if(!power.isInteractive()||keyguard.isKeyguardLocked()||BlockService.instance==null)return false;
+  MorningLock.markDone(this,now);
+  // A Pomodoro that's going on (e.g. from the PC) has breaks of its own; one left paused
+  // since yesterday doesn't count, and paired devices that followed it stop it too
+  if(running()){
+   if(!shared.has("paused_at")||shared.optLong("paused_at")>=MorningLock.dayStart(now))return false;
+   if(!local)publish(obj("kind","idle"));
+  }
+  cancelOffer();
+  publishLocal(obj("kind","detox","ends_at",Session.now()+MorningLock.minutes(this)*60000L));
+  return true;
  }
 
  // "Start on its own each day" (see PomodoroSettings): the first time the phone is unlocked
