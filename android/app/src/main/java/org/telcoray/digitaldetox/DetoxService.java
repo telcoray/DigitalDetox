@@ -22,7 +22,7 @@ public final class DetoxService extends Service {
  static final String START_DAILY="start_daily", NOT_TODAY="not_today", START_SET_TIME="start_set_time", SKIP_SET_TIME="skip_set_time";
  // The set time (Schedule tab) whose warning is showing, else null
  Schedule.Due setTime;
- final Map<String,String> peers=new LinkedHashMap<>();final Map<String,Long> seen=new HashMap<>();
+ final Map<String,String> peers=new LinkedHashMap<>();final Map<String,String> forms=new HashMap<>();final Map<String,Long> seen=new HashMap<>();
  WifiManager.MulticastLock multicast;
  static JSONObject obj(Object... values){JSONObject o=new JSONObject();try{for(int i=0;i<values.length;i+=2)o.put((String)values[i],values[i+1]);}catch(JSONException e){throw new IllegalArgumentException(e);}return o;}
  JSONObject rpc(JSONObject o){try{JSONObject r=new JSONObject(NativeSync.call(o.toString()));if(r.has("error"))status=r.optString("error");return r;}catch(Exception|LinkageError e){status="Sync unavailable: "+e.getMessage();return obj("error",status);}}
@@ -37,7 +37,7 @@ public final class DetoxService extends Service {
   String savedKey=p.getString("lockKey","");long savedEnd=p.getLong("wallEnd",0);if(savedEnd>Session.now()){lockKey=savedKey;wallEnd=savedEnd;lockUntil=SystemClock.elapsedRealtime()+Math.min(999*60000L,savedEnd-Session.now());}
   initSync();handler.post(tick);
  }
- void initSync(){try{JSONArray a=new JSONArray();a.put("255.255.255.255");for(NetworkInterface n:Collections.list(NetworkInterface.getNetworkInterfaces()))if(n.isUp()&&!n.isLoopback())for(InterfaceAddress i:n.getInterfaceAddresses())if(i.getBroadcast()!=null)a.put(i.getBroadcast().getHostAddress());String g=Vault.load(this);JSONObject r=rpc(obj("op","init","device",device,"name",Build.MANUFACTURER+" "+Build.MODEL,"addresses",a,"group",g==null?JSONObject.NULL:new JSONObject(g),"enabled",syncEnabled));nativeReady=!r.has("error");
+ void initSync(){try{JSONArray a=new JSONArray();a.put("255.255.255.255");for(NetworkInterface n:Collections.list(NetworkInterface.getNetworkInterfaces()))if(n.isUp()&&!n.isLoopback())for(InterfaceAddress i:n.getInterfaceAddresses())if(i.getBroadcast()!=null)a.put(i.getBroadcast().getHostAddress());String g=Vault.load(this);JSONObject r=rpc(obj("op","init","device",device,"name",Build.MANUFACTURER+" "+Build.MODEL,"form",getResources().getConfiguration().smallestScreenWidthDp>=600?"tablet":"phone","addresses",a,"group",g==null?JSONObject.NULL:new JSONObject(g),"enabled",syncEnabled));nativeReady=!r.has("error");
    if(nativeReady){sendState();WifiManager w=(WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);multicast=w.createMulticastLock("digital-detox-sync");multicast.setReferenceCounted(false);if(syncEnabled)multicast.acquire();}
   }catch(Exception e){status="Pairing needs setup again: "+e.getMessage();syncEnabled=false;}}
  Notification notification(String text){PendingIntent pi=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE);return new Notification.Builder(this,"session").setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentTitle("Digital Detox").setContentText(text).setContentIntent(pi).setOngoing(true).build();}
@@ -55,7 +55,7 @@ public final class DetoxService extends Service {
   getSystemService(NotificationManager.class).notify(1,notification(locked()?"Detox · "+Session.time(remaining()):shared.optString("kind").equals("pomodoro")?"Pomodoro · "+Session.time(p.remaining()):syncEnabled?"Sync enabled on your local network":"Ready"));
  }catch(Exception e){status=e.getMessage();}handler.postDelayed(this,1000);}};
  boolean locked(){return lockUntil>SystemClock.elapsedRealtime();}long remaining(){return Math.max(0,lockUntil-SystemClock.elapsedRealtime());}
- void event(JSONObject e)throws Exception {String type=e.optString("type");if(type.equals("error")){status=e.optString("message");code="";return;}String peer=e.optString("device");if(!peer.isEmpty()){peers.put(peer,e.optString("name"));seen.put(peer,SystemClock.elapsedRealtime());}
+ void event(JSONObject e)throws Exception {String type=e.optString("type");if(type.equals("error")){status=e.optString("message");code="";return;}String peer=e.optString("device");if(!peer.isEmpty()){peers.put(peer,e.optString("name"));if(!e.isNull("form")&&e.has("form"))forms.put(peer,e.optString("form"));seen.put(peer,SystemClock.elapsedRealtime());}
   if(type.equals("paired")){if(!e.isNull("group"))Vault.save(this,e.getJSONObject("group").toString());syncEnabled=true;code="";status="Paired with "+e.optString("name");setSync(true);save();}
   if(type.equals("remote")&&syncEnabled){long t=e.optLong("time");String d=e.optString("author","0");if(t>version||(t==version&&new BigInteger(d).compareTo(new BigInteger(author))>0)){JSONObject s=e.getJSONObject("shared");version=t;author=d;local=false;if(locked())pending=s;else shared=s;send(s);save();}}
  }
@@ -71,7 +71,7 @@ public final class DetoxService extends Service {
  void setSync(boolean enabled){if(locked())return;syncEnabled=enabled;rpc(obj("op","enable","enabled",enabled));if(multicast!=null){if(enabled&&!multicast.isHeld())multicast.acquire();if(!enabled&&multicast.isHeld())multicast.release();}save();}
  void join(String c){rpc(obj("op","join","code",c));status="Looking for the device showing the code…";}
  void invite(){try{if(Vault.load(this)==null){byte[] k=new byte[32];new SecureRandom().nextBytes(k);JSONArray bytes=new JSONArray();for(byte b:k)bytes.put(b&255);JSONObject g=obj("id",new BigInteger(64,new SecureRandom()).toString(),"key",bytes);Vault.save(this,g.toString());rpc(obj("op","group","group",g));}code=rpc(obj("op","invite")).optString("code");status="Code valid for two minutes";}catch(Exception e){status=e.getMessage();}}
- void unpair(){if(locked())return;setSync(false);rpc(obj("op","cancel"));rpc(obj("op","group","group",JSONObject.NULL));Vault.clear(this);peers.clear();code="";status="Unpaired";}
+ void unpair(){if(locked())return;setSync(false);rpc(obj("op","cancel"));rpc(obj("op","group","group",JSONObject.NULL));Vault.clear(this);peers.clear();forms.clear();code="";status="Unpaired";}
  @Override public int onStartCommand(Intent i,int f,int id){String a=i==null?null:i.getAction();if(START_DAILY.equals(a)){if(offerUntil>0)startDaily();}else if(NOT_TODAY.equals(a))cancelOffer();
   else if(START_SET_TIME.equals(a)){if(setTime!=null)startSetTime(setTime);}else if(SKIP_SET_TIME.equals(a)){if(setTime!=null)handled(setTime);}
   return START_STICKY;}

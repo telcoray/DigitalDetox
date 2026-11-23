@@ -28,7 +28,7 @@ pub use clock::now_ms;
 #[allow(unused_imports)]
 pub use clock::offset_ms as clock_offset_ms;
 pub use config::Config;
-pub use protocol::{Group, Plan, Shared, Version, random_code};
+pub use protocol::{Form, Group, Plan, Shared, Version, random_code};
 use protocol::{Message, PORT};
 
 /// How often the current activity is broadcast, so devices that wake up or join catch up
@@ -46,7 +46,7 @@ const KNOWN_FOR: Duration = Duration::from_secs(60);
 #[derive(Clone, Debug)]
 pub enum Event {
     /// A paired device announced its activity
-    Remote { device: u64, name: String, version: Version, shared: Shared },
+    Remote { device: u64, name: String, form: Option<Form>, version: Version, shared: Shared },
     /// Pairing succeeded. `group` is set on the device where the code was typed: it joins it.
     Paired { device: u64, name: String, group: Option<Group> },
     PairingFailed(&'static str),
@@ -70,6 +70,7 @@ impl Sync {
     pub fn start(
         device: u64,
         name: String,
+        form: Form,
         group: Option<Group>,
         enabled: bool,
         on_event: impl Fn(Event) + Send + 'static,
@@ -82,6 +83,7 @@ impl Sync {
             socket,
             device,
             name,
+            form,
             group,
             enabled,
             current: None,
@@ -154,6 +156,7 @@ struct Worker {
     socket: UdpSocket,
     device: u64,
     name: String,
+    form: Form,
     group: Option<Group>,
     enabled: bool,
     current: Option<(Version, Shared)>,
@@ -229,7 +232,7 @@ impl Worker {
     fn receive(&mut self, packet: &[u8], from: SocketAddr, received_at: u64) -> Option<Event> {
         let key = self.group.as_ref().map(|g| g.key);
         match protocol::decode(packet, key.as_ref())? {
-            Message::State { group, device, name, version, shared, reply, sent_at } => {
+            Message::State { group, device, name, version, shared, reply, sent_at, form } => {
                 let ours = self.group.as_ref().is_some_and(|g| g.id == group);
                 if !ours || device == self.device {
                     return None;
@@ -243,7 +246,7 @@ impl Worker {
                 if !reply {
                     self.reply_state(from);
                 }
-                Some(Event::Remote { device, name, version, shared })
+                Some(Event::Remote { device, name, form, version, shared })
             }
             Message::PairHello { pairing, device, name, spake } => {
                 if device == self.device {
@@ -388,6 +391,7 @@ impl Worker {
             shared,
             reply,
             sent_at: Some(clock::system_ms()),
+            form: Some(self.form),
         };
         Some(protocol::encode_signed(&message, &group.key))
     }

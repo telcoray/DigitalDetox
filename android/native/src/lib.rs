@@ -63,10 +63,11 @@ fn group(value: &Value) -> Result<Option<sync::Group>, String> {
 
 fn event_to_json(event: sync::Event) -> Value {
     match event {
-        sync::Event::Remote { device, name, version, shared } => json!({
+        sync::Event::Remote { device, name, form, version, shared } => json!({
             "type": "remote",
             "device": device.to_string(),
             "name": name,
+            "form": form,
             "time": version.time,
             "author": version.device.to_string(),
             "shared": shared,
@@ -96,6 +97,8 @@ fn handle(request: Value) -> Result<Value, String> {
             let net = sync::Sync::start(
                 number(&request["device"])?,
                 request["name"].as_str().unwrap_or("Android").into(),
+                // "phone" or "tablet", decided by Java from the screen size
+                serde_json::from_value(request["form"].clone()).unwrap_or(sync::Form::Phone),
                 group(&request["group"])?,
                 request["enabled"].as_bool().unwrap_or(false),
                 move |event| {

@@ -785,7 +785,21 @@ public final class MainActivity extends Activity {
             list.append("●");
             list.setSpan(new android.text.style.ForegroundColorSpan(online ? GREEN : MUTED),
                 start, list.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            list.append("  ").append(entry.getValue()).append(online ? "  ·  online" : "  ·  offline");
+            list.append("  ");
+            // What kind of device it is, if it said (older versions don't)
+            String form = s.forms.get(entry.getKey());
+            int icon = "desktop".equals(form) ? R.drawable.device_desktop : "laptop".equals(form) ? R.drawable.device_laptop
+                : "tablet".equals(form) ? R.drawable.device_tablet : "phone".equals(form) ? R.drawable.device_phone : 0;
+            if (icon != 0) {
+                android.graphics.drawable.Drawable drawable = getDrawable(icon);
+                drawable.setBounds(0, 0, dp(19), dp(19));
+                int at = list.length();
+                list.append("￼");
+                list.setSpan(new android.text.style.ImageSpan(drawable, android.text.style.DynamicDrawableSpan.ALIGN_CENTER),
+                    at, list.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                list.append("  ");
+            }
+            list.append(entry.getValue()).append(online ? "  ·  online" : "  ·  offline");
         }
         peers.setText(list.length() == 0 ? "No devices discovered yet" : list);
     }

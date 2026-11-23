@@ -39,6 +39,13 @@ _Last updated: 2026-11-22_
   its fixed 5:00 day start: the user doesn't want the "From" time on the PC.
   User tested: custom times from the phone are followed by the PC; the daily start works (the
   notification wasn't noticed: Honor shows new channels without a banner).
+- Device icons in the Sync list (2026-11-23, Windows and Android): every State message carries
+  an optional `form` (desktop / laptop / tablet / phone; unknown values read as `Other`, older
+  versions leave it out and ignore it). Windows: laptop if `GetPwrCapabilities` reports a
+  battery that isn't short-term (a UPS is), else desktop. Android: tablet if the smallest
+  screen width is ≥ 600 dp. Kept in sync.json (`Peer::form`); Android keeps it in memory.
+  Icons: assets/devices/*.svg and res/drawable/device_*.xml (same paths). Not yet tested on
+  the real devices.
 - Android "Wait in the morning" (Detox tab, user's idea 2026-11-22, MorningLock.java): the
   first unlock of each day (day starts at 05:00, like Windows) locks the phone right away for
   15/30/45/60 min, on this phone only (`publishLocal`). Turning it on starts from the next day.

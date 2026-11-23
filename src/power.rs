@@ -24,6 +24,17 @@ pub fn has_modern_standby() -> bool {
     unsafe { GetPwrCapabilities(&mut capabilities) && capabilities.AoAc }
 }
 
+/// True on PCs with a built-in battery, i.e. laptops and tablets running Windows. A UPS counts
+/// as a short-term battery, so a desktop plugged into one isn't taken for a laptop.
+pub fn has_battery() -> bool {
+    let mut capabilities = SYSTEM_POWER_CAPABILITIES::default();
+    unsafe {
+        GetPwrCapabilities(&mut capabilities)
+            && capabilities.SystemBatteriesPresent
+            && !capabilities.BatteriesAreShortTerm
+    }
+}
+
 /// How long since the last key press or mouse movement, anywhere in the system
 pub fn idle_time() -> Duration {
     let mut info = LASTINPUTINFO { cbSize: size_of::<LASTINPUTINFO>() as u32, dwTime: 0 };

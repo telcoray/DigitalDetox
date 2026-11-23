@@ -102,10 +102,10 @@ pub fn publish(app: &App, shared: Shared) {
 pub fn on_event(app: &Rc<App>, event: Event) {
     let sharing = &app.sharing;
     match event {
-        Event::Remote { device, name, version, shared } => {
+        Event::Remote { device, name, form, version, shared } => {
             sharing.seen.borrow_mut().insert(device, Instant::now());
             let mut config = sharing.config.borrow_mut();
-            if config.remember_peer(device, &name, |id| sharing.is_online(id)) {
+            if config.remember_peer(device, &name, form, |id| sharing.is_online(id)) {
                 config.save();
             }
             let enabled = config.enabled;
@@ -131,7 +131,7 @@ pub fn on_event(app: &Rc<App>, event: Event) {
                 // The device where the code was typed joins the other's group
                 config.set_group(Some(group));
             }
-            config.remember_peer(device, &name, |id| sharing.is_online(id));
+            config.remember_peer(device, &name, None, |id| sharing.is_online(id));
             config.enabled = true;
             config.save();
             drop(config);
@@ -260,7 +260,8 @@ fn start_net(app: &Rc<App>) -> bool {
     }
     let config = app.sharing.config.borrow();
     let name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Windows PC".into());
-    let started = sync::Sync::start(config.device, name, config.group(), config.enabled, |event| {
+    let form = if crate::power::has_battery() { sync::Form::Laptop } else { sync::Form::Desktop };
+    let started = sync::Sync::start(config.device, name, form, config.group(), config.enabled, |event| {
         crate::dispatch(Action::Sync(event))
     });
     drop(config);
@@ -297,6 +298,14 @@ pub fn update_view(app: &App) {
         .map(|peer| SyncDevice {
             name: SharedString::from(peer.name.as_str()),
             online: app.sharing.is_online(peer.id),
+            form: match peer.form {
+                Some(sync::Form::Desktop) => "desktop",
+                Some(sync::Form::Laptop) => "laptop",
+                Some(sync::Form::Tablet) => "tablet",
+                Some(sync::Form::Phone) => "phone",
+                Some(sync::Form::Other) | None => "",
+            }
+            .into(),
         })
         .collect();
     let has_group = config.group().is_some();

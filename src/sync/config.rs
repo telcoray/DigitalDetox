@@ -5,12 +5,15 @@ use serde::{Deserialize, Serialize};
 use windows::Win32::Foundation::{HLOCAL, LocalFree};
 use windows::Win32::Security::Cryptography::{CRYPT_INTEGER_BLOB, CryptProtectData, CryptUnprotectData};
 
-use super::protocol::{self, Group};
+use super::protocol::{self, Form, Group};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Peer {
     pub id: u64,
     pub name: String,
+    /// Not known until it's heard from with a version that sends it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub form: Option<Form>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -61,23 +64,29 @@ impl Config {
         self.peers.clear();
     }
 
-    /// Adds the device to the list, or updates its name. Returns true if anything changed.
+    /// Adds the device to the list, or updates its name and kind (`form`, kept if the message
+    /// didn't say). Returns true if anything changed.
     ///
     /// A device that's reinstalled comes back with a new id but the same name: other entries
     /// with that name that aren't `online` are dropped, so the old one doesn't stay "offline"
     /// forever. Two devices with the same name that are both on keep their own entries.
-    pub fn remember_peer(&mut self, id: u64, name: &str, online: impl Fn(u64) -> bool) -> bool {
+    pub fn remember_peer(&mut self, id: u64, name: &str, form: Option<Form>, online: impl Fn(u64) -> bool) -> bool {
         let before = self.peers.len();
         self.peers.retain(|p| p.id == id || p.name != name || online(p.id));
         let mut changed = self.peers.len() != before;
         match self.peers.iter_mut().find(|p| p.id == id) {
-            Some(peer) if peer.name == name => {}
             Some(peer) => {
-                peer.name = name.to_owned();
-                changed = true;
+                if peer.name != name {
+                    peer.name = name.to_owned();
+                    changed = true;
+                }
+                if form.is_some() && peer.form != form {
+                    peer.form = form;
+                    changed = true;
+                }
             }
             None => {
-                self.peers.push(Peer { id, name: name.to_owned() });
+                self.peers.push(Peer { id, name: name.to_owned(), form });
                 changed = true;
             }
         }
@@ -143,15 +152,27 @@ mod tests {
     fn a_reinstalled_device_replaces_its_old_entry() {
         let mut config = Config::default();
         let never = |_| false;
-        assert!(config.remember_peer(1, "Phone", never));
-        assert!(config.remember_peer(2, "Laptop", never));
-        assert!(!config.remember_peer(1, "Phone", never));
+        assert!(config.remember_peer(1, "Phone", None, never));
+        assert!(config.remember_peer(2, "Laptop", None, never));
+        assert!(!config.remember_peer(1, "Phone", None, never));
         // Same name, new id, the old one silent: replaced
-        assert!(config.remember_peer(3, "Phone", never));
+        assert!(config.remember_peer(3, "Phone", None, never));
         let ids: Vec<u64> = config.peers.iter().map(|p| p.id).collect();
         assert_eq!(ids, [2, 3]);
         // Two devices with the same name, both on: both kept
-        assert!(config.remember_peer(4, "Phone", |id| id == 3));
+        assert!(config.remember_peer(4, "Phone", None, |id| id == 3));
         assert_eq!(config.peers.len(), 3);
+    }
+
+    #[test]
+    fn the_kind_of_device_is_learned_and_kept() {
+        let mut config = Config::default();
+        let never = |_| false;
+        assert!(config.remember_peer(1, "PC", None, never));
+        assert!(config.remember_peer(1, "PC", Some(Form::Desktop), never));
+        assert!(!config.remember_peer(1, "PC", Some(Form::Desktop), never));
+        // A message without it (an older version) doesn't forget it
+        assert!(!config.remember_peer(1, "PC", None, never));
+        assert_eq!(config.peers[0].form, Some(Form::Desktop));
     }
 }

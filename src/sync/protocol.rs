@@ -77,6 +77,19 @@ impl Plan {
     }
 }
 
+/// What kind of device it is, for its icon in the list of paired devices
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Form {
+    Desktop,
+    Laptop,
+    Tablet,
+    Phone,
+    /// A kind added by a later version: read without failing, shown without an icon
+    #[serde(other)]
+    Other,
+}
+
 /// When a change was made and by which device: on every device the most recent change wins
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Version {
@@ -122,6 +135,9 @@ pub enum Message {
         /// The sender's own clock when it sent this, see clock.rs. Older versions leave it out.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         sent_at: Option<u64>,
+        /// What kind of device the sender is. Older versions leave it out.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        form: Option<Form>,
     },
     /// Pairing, step 1 (the device where the code was typed): its half of the key exchange
     PairHello { pairing: u64, device: u64, name: String, spake: Vec<u8> },
@@ -270,7 +286,18 @@ mod tests {
             shared: Shared::Pomodoro { start: 123, paused_at: Some(456), plan: Plan { work: 50, ..Plan::default() } },
             reply: false,
             sent_at: Some(1000),
+            form: Some(Form::Laptop),
         }
+    }
+
+    #[test]
+    fn device_kinds_are_optional_and_unknown_ones_are_tolerated() {
+        let json = r#"{"type":"state","group":7,"device":1,"name":"PC","version":{"time":10,"device":1},"shared":{"kind":"idle"}}"#;
+        let Ok(Message::State { form, .. }) = serde_json::from_str(json) else { panic!() };
+        assert_eq!(form, None);
+        let json = json.replace(r#""name""#, r#""form":"watch","name""#);
+        let Ok(Message::State { form, .. }) = serde_json::from_str(&json) else { panic!() };
+        assert_eq!(form, Some(Form::Other));
     }
 
     #[test]

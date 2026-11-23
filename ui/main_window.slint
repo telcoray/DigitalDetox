@@ -277,6 +277,8 @@ export struct ScheduledDetox {
 export struct SyncDevice {
     name: string,
     online: bool,
+    // "desktop", "laptop", "tablet", "phone", or "" if the device hasn't said (older version)
+    form: string,
 }
 
 export component MainWindow inherits Window {
@@ -955,6 +957,21 @@ export component MainWindow inherits Window {
                                 height: 10px;
                                 border-radius: 5px;
                                 background: device.online ? Theme.success : Theme.outline-hover;
+                            }
+                        }
+
+                        // What kind of device it is
+                        if device.form != "": VerticalLayout {
+                            alignment: center;
+
+                            Image {
+                                width: 20px;
+                                height: 20px;
+                                source: device.form == "desktop" ? @image-url("../assets/devices/desktop.svg")
+                                    : device.form == "laptop" ? @image-url("../assets/devices/laptop.svg")
+                                    : device.form == "tablet" ? @image-url("../assets/devices/tablet.svg")
+                                    : @image-url("../assets/devices/phone.svg");
+                                colorize: Theme.muted;
                             }
                         }
 
